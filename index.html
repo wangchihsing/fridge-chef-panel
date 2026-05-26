@@ -9,6 +9,9 @@
     <meta name="theme-color" content="#d97706">
     <link rel="manifest" href="manifest.json">
     <title>我的冰箱 AI 主廚</title>
+    <!-- Firebase Realtime Database (compat SDK, no build step needed) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <style>
         :root {
             --primary: #d97706;
@@ -658,6 +661,36 @@
         </div>
     </div>
     <div class="card">
+        <div class="section-title">☁️ 雲端同步（共用冰箱）</div>
+        <div style="display:flex;align-items:center;margin-bottom:12px;">
+            <div class="flex-1">
+                <div class="setting-label">同步狀態</div>
+                <div class="setting-sub" id="cloudSyncStatus">未設定</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="manualPull()" id="syncNowBtn" style="display:none;">立即同步</button>
+        </div>
+        <div class="form-group">
+            <label>Firebase 資料庫網址</label>
+            <input id="fbDbUrl" type="url" placeholder="https://your-project-default-rtdb.firebaseio.com">
+        </div>
+        <div class="form-group">
+            <label>Firebase API 金鑰</label>
+            <input id="fbApiKey" type="text" placeholder="AIzaSy...">
+        </div>
+        <div class="form-group">
+            <label>家庭代碼 <span style="color:var(--muted);font-weight:400;font-size:11px;">（和女朋友共用相同代碼→共享同一個冰箱）</span></label>
+            <input id="householdCodeInput" type="text" placeholder="自訂任意代碼，如：我們家2025" maxlength="40">
+        </div>
+        <div class="row mb-8">
+            <button class="btn btn-primary flex-1" onclick="enableCloudSync()">啟用同步</button>
+            <button class="btn btn-outline flex-1" onclick="disableCloudSync()">停用</button>
+        </div>
+        <p style="font-size:11px;color:var(--muted);line-height:1.6;">
+            💡 需先建立免費 Firebase 專案（5 分鐘），詳見底部說明。<br>
+            媽媽用不同的家庭代碼 → 資料完全獨立，不會互相影響。
+        </p>
+    </div>
+    <div class="card">
         <div class="section-title">資料管理</div>
         <div class="setting-row">
             <div class="flex-1">
@@ -702,12 +735,25 @@
     <div class="card">
         <div class="section-title">關於</div>
         <p style="font-size:13px;color:var(--muted);line-height:1.6;">
-            我的冰箱 AI 主廚 v4.1<br>
-            資料儲存於裝置本機，不會上傳到伺服器。<br><br>
+            我的冰箱 AI 主廚 v4.2<br><br>
             <strong>保鮮天數參考：</strong><br>
             冷藏：肉類 5 天 · 海鮮 3 天 · 蔬菜 7 天 · 蛋奶 14 天 · 其他 30 天<br>
             冷凍：肉類 90 天 · 海鮮 60 天 · 蔬菜 30 天 · 蛋奶 30 天 · 其他 180 天
         </p>
+        <div style="margin-top:12px;padding:12px;background:var(--bg);border-radius:10px;">
+            <p style="font-size:12px;font-weight:700;margin-bottom:8px;">☁️ 雲端同步設定步驟</p>
+            <p style="font-size:11px;color:var(--muted);line-height:1.8;">
+                1. 開啟 <strong>console.firebase.google.com</strong><br>
+                2. 新增專案（關閉 Analytics）→ 建立<br>
+                3. 左側「Realtime Database」→「建立資料庫」→「以測試模式開始」<br>
+                4. 複製資料庫網址（如 https://xxx-rtdb.firebaseio.com）<br>
+                5. 齒輪圖⚙️「專案設定」→「你的應用程式」→ 點「&lt;/&gt;」→ 隨意填名稱 → 複製 apiKey<br>
+                6. 回到「Realtime Database」→「規則」→ 改為以下後發布：<br>
+                <code style="font-size:10px;background:var(--border);padding:2px 4px;border-radius:4px;">{"rules":{"households":{"$c":{".read":true,".write":true}}}}</code><br>
+                7. 把資料庫網址、API 金鑰、家庭代碼填入上方，點「啟用同步」<br>
+                8. 把同樣三個資訊傳給女朋友，她填入後即共用同一個冰箱 ✅
+            </p>
+        </div>
     </div>
 </div>
 
@@ -813,7 +859,8 @@ function getDefaultStorage(cat) {
 // ==================== MIGRATION ====================
 function migrateFridge() {
     const v5 = safeGet('fridge_v5', null);
-    if (v5) return v5;
+    // Ensure all v5 items have lastModified (for cloud sync merge)
+    if (v5) return v5.map(i => ({...i, lastModified: i.lastModified || 0}));
     // Migrate from v4 (no storage field)
     const v4 = safeGet('fridge_v4', null);
     if (v4 && Array.isArray(v4)) {
@@ -822,7 +869,8 @@ function migrateFridge() {
             cat: item.cat || '🥫 其他',
             date: item.date || new Date().toISOString().split('T')[0],
             storage: item.storage || getDefaultStorage(item.cat || '🥫 其他'),
-            usageCount: item.usageCount || 0
+            usageCount: item.usageCount || 0,
+            lastModified: 0
         }));
         safeSet('fridge_v5', migrated);
         return migrated;
@@ -851,6 +899,18 @@ let qAnswers = {};
 let lastPrompt = '';
 let lastShopPrompt = '';
 let batchItems = []; // [{name, cat, storage}]
+
+// ── Cloud sync ──────────────────────────────────────────────────────────────
+// Persistent device identifier (used to detect our own pushes vs. remote ones)
+let deviceId = safeGet('device_id', null);
+if (!deviceId) {
+    deviceId = 'dev_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    safeSet('device_id', deviceId);
+}
+let fbApp = null;
+let fbDb  = null;
+let cloudSyncEnabled = false;
+let isSyncing = false;
 
 // ==================== EXPIRY LOGIC ====================
 function daysAgo(dateStr) {
@@ -1133,6 +1193,7 @@ function saveAndRender() {
     renderFridge();
     renderCookChips();
     renderCookExpiryBanner();
+    pushToCloud(); // auto-sync after every local change
 }
 
 function renderFridge() {
@@ -1219,7 +1280,7 @@ function addFridgeItem() {
     const date    = document.getElementById('newItemDate').value || new Date().toISOString().split('T')[0];
     const expiry  = document.getElementById('newItemExpiry').value || null;
     if (!name) { showToast('請輸入食材名稱'); return; }
-    fridge.push({name, cat, storage, date, usageCount: 0, expiry});
+    fridge.push({name, cat, storage, date, usageCount: 0, expiry, lastModified: Date.now()});
     saveAndRender();
     hideAddFridge();
     showToast(`已新增 ${name}`);
@@ -1228,6 +1289,7 @@ function addFridgeItem() {
 function deleteFridgeItem(idx) {
     const item = fridge[idx];
     pushUndo({type:'delete_fridge', index:idx, item});
+    trackDeletion(item.name); // register deletion for cloud sync merge
     fridge.splice(idx, 1);
     saveAndRender();
     showToast(`已刪除 ${item.name}`, true);
@@ -1251,9 +1313,10 @@ function saveEditFridge() {
     const idx = parseInt(document.getElementById('editFridgeIdx').value);
     fridge[idx].name    = document.getElementById('editFridgeName').value.trim();
     fridge[idx].cat     = document.getElementById('editFridgeCat').value;
-    fridge[idx].storage = document.getElementById('editFridgeStorage').value;
-    fridge[idx].date    = document.getElementById('editFridgeDate').value;
-    fridge[idx].expiry  = document.getElementById('editFridgeExpiry').value || null;
+    fridge[idx].storage      = document.getElementById('editFridgeStorage').value;
+    fridge[idx].date         = document.getElementById('editFridgeDate').value;
+    fridge[idx].expiry       = document.getElementById('editFridgeExpiry').value || null;
+    fridge[idx].lastModified = Date.now();
     saveAndRender();
     closeEditFridge();
     showToast('已更新食材');
@@ -1312,7 +1375,7 @@ function batchDelete() {
     const indices = getCheckedIndices();
     if (!indices.length) { showToast('請先選擇食材'); return; }
     pushUndo({type:'batch_delete', items: JSON.parse(JSON.stringify(fridge))});
-    indices.sort((a,b)=>b-a).forEach(idx => fridge.splice(idx, 1));
+    indices.sort((a,b)=>b-a).forEach(idx => { trackDeletion(fridge[idx].name); fridge.splice(idx, 1); });
     exitBatchMode();
     showToast(`已刪除 ${indices.length} 項食材`, true);
 }
@@ -1379,7 +1442,7 @@ function confirmBatchAdd() {
     if (!batchItems.length) return;
     const date = document.getElementById('batchDate').value || new Date().toISOString().split('T')[0];
     batchItems.forEach(item => {
-        fridge.push({name: item.name, cat: item.cat, storage: item.storage, date, usageCount: 0, expiry: item.expiry || null});
+        fridge.push({name: item.name, cat: item.cat, storage: item.storage, date, usageCount: 0, expiry: item.expiry || null, lastModified: Date.now()});
     });
     saveAndRender();
     closeBatchAddModal();
@@ -1558,6 +1621,14 @@ function clearHistory() {
 // ==================== SETTINGS ====================
 function renderSettings() {
     document.getElementById('notifToggle').checked = settings.notificationsEnabled;
+    // Fill cloud sync inputs with saved values
+    const elDb = document.getElementById('fbDbUrl');
+    if (elDb) {
+        elDb.value = safeGet('fb_db_url', '');
+        document.getElementById('fbApiKey').value = safeGet('fb_api_key', '');
+        document.getElementById('householdCodeInput').value = safeGet('household_code', '');
+        updateCloudSyncUI();
+    }
 }
 function toggleNotif() {
     const enabled = document.getElementById('notifToggle').checked;
@@ -1621,9 +1692,180 @@ function clearAllData() {
     fridge = []; history = []; shopList = [];
     tools = [{name:'電鍋',selected:true},{name:'電磁爐',selected:false},{name:'氣炸鍋',selected:false}];
     settings = {notificationsEnabled:false, lastNotifDate:null};
-    ['fridge_v5','fridge_v4','history_v4','tools_cfg','settings_v1','shop_list','collapsed_cats'].forEach(k=>localStorage.removeItem(k));
+    ['fridge_v5','fridge_v4','history_v4','tools_cfg','settings_v1','shop_list','collapsed_cats','deleted_items_v5'].forEach(k=>localStorage.removeItem(k));
     renderFridge(); renderHistory(); renderSettings(); renderCookChips(); renderShop();
     showToast('已清除所有資料');
+}
+
+// ==================== CLOUD SYNC (Firebase) ====================
+
+function enableCloudSync() {
+    const dbUrl = document.getElementById('fbDbUrl').value.trim();
+    const apiKey = document.getElementById('fbApiKey').value.trim();
+    const code  = document.getElementById('householdCodeInput').value.trim();
+    if (!dbUrl || !apiKey || !code) { showToast('請填寫所有欄位'); return; }
+    if (!dbUrl.includes('firebaseio.com')) { showToast('資料庫網址格式不對'); return; }
+    safeSet('fb_db_url', dbUrl);
+    safeSet('fb_api_key', apiKey);
+    safeSet('household_code', code);
+    // Stamp all existing items so they beat cloud items with timestamp 0
+    fridge = fridge.map(i => ({...i, lastModified: i.lastModified || Date.now()}));
+    safeSet('fridge_v5', fridge);
+    initCloudSync();
+    showToast('同步已啟用！正在同步...');
+}
+
+function disableCloudSync() {
+    safeSet('household_code', '');
+    cloudSyncEnabled = false;
+    fbApp = null; fbDb = null;
+    updateCloudSyncUI();
+    showToast('雲端同步已停用');
+}
+
+function initCloudSync() {
+    const dbUrl  = safeGet('fb_db_url', '');
+    const apiKey = safeGet('fb_api_key', '');
+    const code   = safeGet('household_code', '');
+    if (!dbUrl || !apiKey || !code) return;
+    try {
+        if (!fbApp) {
+            try {
+                fbApp = firebase.initializeApp({ apiKey, databaseURL: dbUrl }, 'fridge-chef');
+            } catch(e) {
+                // App might already exist from a previous init
+                if (e.code === 'app/duplicate-app') {
+                    fbApp = firebase.app('fridge-chef');
+                } else throw e;
+            }
+        }
+        fbDb = firebase.database(fbApp);
+        cloudSyncEnabled = true;
+        updateCloudSyncUI();
+        pullFromCloud(); // load latest on startup
+    } catch(e) {
+        console.error('Firebase init error:', e);
+        showToast('Firebase 連線失敗，請確認設定是否正確');
+    }
+}
+
+async function pushToCloud() {
+    if (!cloudSyncEnabled || !fbDb) return;
+    const code = safeGet('household_code', '');
+    if (!code) return;
+    try {
+        const deleted = safeGet('deleted_items_v5', {});
+        await fbDb.ref('households/' + code).set({
+            fridge,
+            deleted,
+            updatedAt: Date.now(),
+            updatedBy: deviceId
+        });
+    } catch(e) { console.error('Cloud push failed:', e); }
+}
+
+async function pullFromCloud() {
+    if (!cloudSyncEnabled || !fbDb || isSyncing) return;
+    const code = safeGet('household_code', '');
+    if (!code) return;
+    isSyncing = true;
+    try {
+        const snap = await fbDb.ref('households/' + code).get();
+        if (!snap.exists()) {
+            // First device to use this code — push local data
+            await pushToCloud();
+            isSyncing = false;
+            updateCloudSyncUI(true);
+            return;
+        }
+        const cloud        = snap.val();
+        const cloudFridge  = cloud.fridge  || [];
+        const cloudDeleted = cloud.deleted || {};
+        const localDeleted = safeGet('deleted_items_v5', {});
+
+        // ── Merge strategy ──────────────────────────────────────────────────
+        // Start with local fridge as base
+        const merged = [...fridge];
+
+        cloudFridge.forEach(ci => {
+            // Skip if we locally deleted this item more recently
+            if (localDeleted[ci.name] && localDeleted[ci.name] > (ci.lastModified || 0)) return;
+            const li = merged.find(l => l.name === ci.name);
+            if (!li) {
+                merged.push(ci);  // new item from cloud — add it
+            } else if ((ci.lastModified || 0) > (li.lastModified || 0)) {
+                Object.assign(li, ci);  // cloud version is newer — update
+            }
+        });
+
+        // Apply cloud-side deletions to local
+        Object.entries(cloudDeleted).forEach(([name, deletedAt]) => {
+            const li = merged.find(i => i.name === name);
+            if (li && (li.lastModified || 0) <= deletedAt) {
+                merged.splice(merged.indexOf(li), 1);
+            }
+        });
+
+        // Merge deleted registries
+        const mergedDeleted = {...localDeleted, ...cloudDeleted};
+        safeSet('deleted_items_v5', mergedDeleted);
+
+        fridge = merged;
+        safeSet('fridge_v5', fridge);
+        renderFridge();
+        renderCookChips();
+        renderCookExpiryBanner();
+
+        // Push merged result back so both devices converge to same state
+        await pushToCloud();
+        updateCloudSyncUI(true);
+    } catch(e) {
+        console.error('Cloud pull failed:', e);
+        updateCloudSyncUI(false);
+    }
+    isSyncing = false;
+}
+
+async function manualPull() {
+    showToast('正在同步...');
+    await pullFromCloud();
+}
+
+function trackDeletion(name) {
+    const deleted = safeGet('deleted_items_v5', {});
+    deleted[name] = Date.now();
+    safeSet('deleted_items_v5', deleted);
+}
+
+function updateCloudSyncUI(lastOk) {
+    const code = safeGet('household_code', '');
+    const el   = document.getElementById('cloudSyncStatus');
+    const btn  = document.getElementById('syncNowBtn');
+    if (!el) return;
+    if (!code) {
+        el.textContent = '未設定';
+        el.style.color = 'var(--muted)';
+        if (btn) btn.style.display = 'none';
+        return;
+    }
+    if (!cloudSyncEnabled) {
+        el.textContent = `代碼：${code} — 請重新啟用`;
+        el.style.color = 'var(--muted)';
+        if (btn) btn.style.display = 'none';
+        return;
+    }
+    if (lastOk === false) {
+        el.textContent = '❌ 同步失敗 — 請確認 Firebase 設定';
+        el.style.color = 'var(--danger)';
+    } else if (lastOk === true) {
+        const t = new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'});
+        el.textContent = `✅ 代碼：${code} — 同步於 ${t}`;
+        el.style.color = 'var(--success)';
+    } else {
+        el.textContent = `代碼：${code} — 連線中...`;
+        el.style.color = 'var(--primary)';
+    }
+    if (btn) btn.style.display = '';
 }
 
 // ==================== SYNC ====================
@@ -1667,6 +1909,7 @@ renderSettings();
 renderCookChips();
 renderCookExpiryBanner();
 renderShop();
+initCloudSync(); // connect to Firebase if household code is already configured
 
 if (settings.notificationsEnabled && Notification.permission === 'granted') {
     const today = new Date().toDateString();
