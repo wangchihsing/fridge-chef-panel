@@ -909,6 +909,7 @@ if (!deviceId) {
 }
 let fbApp = null;
 let fbDb  = null;
+let fbUnsubscribe = null;   // real-time listener cleanup handle
 let cloudSyncEnabled = false;
 let isSyncing = false;
 
@@ -1718,6 +1719,7 @@ function enableCloudSync() {
 function disableCloudSync() {
     safeSet('household_code', '');
     cloudSyncEnabled = false;
+    if (fbUnsubscribe) { fbUnsubscribe(); fbUnsubscribe = null; }
     fbApp = null; fbDb = null;
     updateCloudSyncUI();
     showToast('雲端同步已停用');
@@ -1742,7 +1744,7 @@ function initCloudSync() {
         fbDb = firebase.database(fbApp);
         cloudSyncEnabled = true;
         updateCloudSyncUI();
-        pullFromCloud(); // load latest on startup
+        startRealtimeListener(); // attach real-time listener (fires immediately + on every change)
     } catch(e) {
         console.error('Firebase init error:', e);
         showToast('Firebase 連線失敗，請確認設定是否正確');
@@ -1764,71 +1766,80 @@ async function pushToCloud() {
     } catch(e) { console.error('Cloud push failed:', e); }
 }
 
-async function pullFromCloud() {
-    if (!cloudSyncEnabled || !fbDb || isSyncing) return;
+// ── Real-time listener (replaces one-shot pull) ────────────────────────────
+// Firebase onValue fires immediately on connect, then whenever cloud data changes.
+// This makes sync truly real-time — no button needed.
+function startRealtimeListener() {
+    if (!cloudSyncEnabled || !fbDb) return;
     const code = safeGet('household_code', '');
     if (!code) return;
-    isSyncing = true;
-    try {
-        const snap = await fbDb.ref('households/' + code).get();
+    // Detach any existing listener first
+    if (fbUnsubscribe) { fbUnsubscribe(); fbUnsubscribe = null; }
+    const ref = fbDb.ref('households/' + code);
+    ref.on('value', (snap) => {
         if (!snap.exists()) {
-            // First device to use this code — push local data
-            await pushToCloud();
-            isSyncing = false;
-            updateCloudSyncUI(true);
+            pushToCloud(); // First device using this code — seed the cloud
             return;
         }
-        const cloud        = snap.val();
-        const cloudFridge  = cloud.fridge  || [];
-        const cloudDeleted = cloud.deleted || {};
-        const localDeleted = safeGet('deleted_items_v5', {});
-
-        // ── Merge strategy ──────────────────────────────────────────────────
-        // Start with local fridge as base
-        const merged = [...fridge];
-
-        cloudFridge.forEach(ci => {
-            // Skip if we locally deleted this item more recently
-            if (localDeleted[ci.name] && localDeleted[ci.name] > (ci.lastModified || 0)) return;
-            const li = merged.find(l => l.name === ci.name);
-            if (!li) {
-                merged.push(ci);  // new item from cloud — add it
-            } else if ((ci.lastModified || 0) > (li.lastModified || 0)) {
-                Object.assign(li, ci);  // cloud version is newer — update
-            }
-        });
-
-        // Apply cloud-side deletions to local
-        Object.entries(cloudDeleted).forEach(([name, deletedAt]) => {
-            const li = merged.find(i => i.name === name);
-            if (li && (li.lastModified || 0) <= deletedAt) {
-                merged.splice(merged.indexOf(li), 1);
-            }
-        });
-
-        // Merge deleted registries
-        const mergedDeleted = {...localDeleted, ...cloudDeleted};
-        safeSet('deleted_items_v5', mergedDeleted);
-
-        fridge = merged;
-        safeSet('fridge_v5', fridge);
-        renderFridge();
-        renderCookChips();
-        renderCookExpiryBanner();
-
-        // Push merged result back so both devices converge to same state
-        await pushToCloud();
-        updateCloudSyncUI(true);
-    } catch(e) {
-        console.error('Cloud pull failed:', e);
+        const cloud = snap.val();
+        if (cloud.updatedBy === deviceId) return; // Skip echoes of our own pushes
+        applyCloudMerge(cloud);
+    }, (err) => {
+        console.error('Realtime listener error:', err);
         updateCloudSyncUI(false);
-    }
+    });
+    fbUnsubscribe = () => ref.off('value');
+}
+
+// Order-independent fingerprint to detect actual data changes
+function fridgeFingerprint() {
+    return fridge.map(i => i.name + ':' + (i.lastModified || 0)).sort().join('|');
+}
+
+// Merge incoming cloud snapshot into local, then push back only if data changed
+function applyCloudMerge(cloud) {
+    if (isSyncing) return;
+    isSyncing = true;
+    const snapBefore   = fridgeFingerprint();
+    const cloudFridge  = cloud.fridge  || [];
+    const cloudDeleted = cloud.deleted || {};
+    const localDeleted = safeGet('deleted_items_v5', {});
+
+    const merged = [...fridge];
+    cloudFridge.forEach(ci => {
+        if (localDeleted[ci.name] && localDeleted[ci.name] > (ci.lastModified || 0)) return;
+        const li = merged.find(l => l.name === ci.name);
+        if (!li) {
+            merged.push(ci);
+        } else if ((ci.lastModified || 0) > (li.lastModified || 0)) {
+            Object.assign(li, ci);
+        }
+    });
+    Object.entries(cloudDeleted).forEach(([name, ts]) => {
+        const li = merged.find(i => i.name === name);
+        if (li && (li.lastModified || 0) <= ts) merged.splice(merged.indexOf(li), 1);
+    });
+    safeSet('deleted_items_v5', {...localDeleted, ...cloudDeleted});
+    fridge = merged;
+    safeSet('fridge_v5', fridge);
+    renderFridge(); renderCookChips(); renderCookExpiryBanner();
+    updateCloudSyncUI(true);
+    // Only push back to cloud if local data actually changed (prevents echo loops)
+    if (fridgeFingerprint() !== snapBefore) pushToCloud();
     isSyncing = false;
 }
 
 async function manualPull() {
+    if (!cloudSyncEnabled || !fbDb) { showToast('同步未啟用'); return; }
+    const code = safeGet('household_code', '');
+    if (!code) return;
     showToast('正在同步...');
-    await pullFromCloud();
+    try {
+        const snap = await fbDb.ref('households/' + code).get();
+        if (!snap.exists()) { await pushToCloud(); showToast('已上傳本地資料'); return; }
+        applyCloudMerge(snap.val());
+        showToast('同步完成');
+    } catch(e) { showToast('同步失敗，請稍後再試'); }
 }
 
 function trackDeletion(name) {
