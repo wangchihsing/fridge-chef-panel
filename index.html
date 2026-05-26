@@ -176,7 +176,9 @@
             background: var(--white); border: 1.5px solid var(--primary);
             border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
             max-height: 180px; overflow-y: auto; margin-top: 2px;
+            display: none; /* hidden by default */
         }
+        .autocomplete-list.visible { display: block; }
         .autocomplete-item {
             padding: 10px 14px; font-size: 14px; cursor: pointer;
             border-bottom: 1px solid var(--border);
@@ -488,7 +490,7 @@
             <label>食材名稱</label>
             <input id="newItemName" type="text" placeholder="輸入食材名稱..."
                 oninput="onNameInput()" autocomplete="off">
-            <div class="autocomplete-list hidden" id="autocompleteList"></div>
+            <div class="autocomplete-list" id="autocompleteList"></div>
         </div>
         <div class="form-row">
             <div>
@@ -1057,15 +1059,15 @@ function showAddFridge() {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('newItemName').value = '';
     document.getElementById('newItemCat').value = '🥩 肉類';
-    document.getElementById('newItemStorage').value = '冷凍'; // default for 肉類
+    document.getElementById('newItemStorage').value = '冷凍';
     document.getElementById('newItemDate').value = today;
-    document.getElementById('autocompleteList').classList.add('hidden');
+    hideAutocomplete(); // clear content + hide
     document.getElementById('addFridgeForm').style.display = '';
     document.getElementById('newItemName').focus();
 }
 function hideAddFridge() {
     document.getElementById('addFridgeForm').style.display = 'none';
-    document.getElementById('autocompleteList').classList.add('hidden');
+    hideAutocomplete();
 }
 function onAddCatChange() {
     const cat = document.getElementById('newItemCat').value;
@@ -1122,20 +1124,25 @@ function clearExpiredItems() {
 }
 
 // ==================== AUTOCOMPLETE ====================
+function hideAutocomplete() {
+    const list = document.getElementById('autocompleteList');
+    list.innerHTML = '';           // clear stale content
+    list.classList.remove('visible');
+}
 function onNameInput() {
     const val  = document.getElementById('newItemName').value.trim().toLowerCase();
     const list = document.getElementById('autocompleteList');
-    if (!val) { list.classList.add('hidden'); return; }
+    if (!val) { hideAutocomplete(); return; }
     const matches = FOOD_DB.filter(f => f.includes(val) || val.includes(f)).slice(0, 6);
-    if (!matches.length) { list.classList.add('hidden'); return; }
+    if (!matches.length) { hideAutocomplete(); return; }
     list.innerHTML = matches.map(m =>
         `<div class="autocomplete-item" onclick="selectAutocomplete('${m}')">${m}</div>`
     ).join('');
-    list.classList.remove('hidden');
+    list.classList.add('visible');
 }
 function selectAutocomplete(val) {
     document.getElementById('newItemName').value = val;
-    document.getElementById('autocompleteList').classList.add('hidden');
+    hideAutocomplete();
     const cat = detectCategory(val);
     document.getElementById('newItemCat').value     = cat;
     document.getElementById('newItemStorage').value = getDefaultStorage(cat);
@@ -1243,7 +1250,7 @@ function startVoice() {
         const cat = detectCategory(val);
         document.getElementById('newItemCat').value     = cat;
         document.getElementById('newItemStorage').value = getDefaultStorage(cat);
-        document.getElementById('autocompleteList').classList.add('hidden');
+        hideAutocomplete();
     };
     rec.onerror = () => showToast('語音辨識失敗');
     rec.start();
