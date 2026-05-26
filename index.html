@@ -448,6 +448,7 @@
         <div class="chips" id="aiChips">
             <div class="chip selected" onclick="selectAI(this,'ChatGPT')">ChatGPT</div>
             <div class="chip" onclick="selectAI(this,'Claude')">Claude</div>
+            <div class="chip" onclick="selectAI(this,'Gemini')">Gemini</div>
         </div>
         <div class="mt-12">
             <label>特別需求（可選）</label>
@@ -460,10 +461,12 @@
         <div class="card">
             <div class="section-title">料理提示詞</div>
             <div class="cook-result" id="cookResult"></div>
-            <div class="row mt-12" style="flex-wrap:wrap;gap:8px;">
-                <button class="btn btn-primary btn-sm" onclick="openAI()">開啟 AI App</button>
+            <p style="font-size:12px;color:var(--muted);margin-top:8px;">
+                提示詞已複製至剪貼板，開啟 App 後直接貼上即可。記錄將自動儲存。
+            </p>
+            <div class="row mt-10" style="flex-wrap:wrap;gap:8px;">
+                <button class="btn btn-primary flex-1" id="openAIBtn" onclick="openAI()">開啟 ChatGPT</button>
                 <button class="btn btn-outline btn-sm" onclick="copyPrompt()">複製</button>
-                <button class="btn btn-outline btn-sm" onclick="saveHistory()">儲存記錄</button>
             </div>
         </div>
     </div>
@@ -716,6 +719,30 @@ const FOOD_DB = [
     '醬油','沙拉油','麻油','味噌','豆瓣醬','辣醬','番茄醬','太白粉','雞高湯'
 ];
 
+// AI deep-link config — no web fallback (avoids opening browser instead of App)
+const AI_CONFIG = {
+    'ChatGPT': { scheme: 'chatgpt://' },
+    'Claude':  { scheme: 'claude://'  },
+    'Gemini':  { scheme: 'googlegeminiai://' }
+};
+
+// Synchronous clipboard copy — keeps iOS user-gesture context intact
+// (async clipboard.writeText loses context, causing deep links to fail)
+function copySync(text) {
+    try {
+        const el = document.createElement('textarea');
+        el.value = text;
+        el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+        document.body.appendChild(el);
+        el.focus(); el.select(); el.setSelectionRange(0, text.length);
+        document.execCommand('copy');
+        document.body.removeChild(el);
+    } catch(e) {
+        // fallback to async if execCommand unsupported
+        navigator.clipboard?.writeText(text).catch(() => {});
+    }
+}
+
 // ==================== STORAGE HELPERS ====================
 function safeGet(key, def) {
     try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }
@@ -808,7 +835,7 @@ function showToast(msg, canUndo = false) {
     document.getElementById('toastUndo').style.display = canUndo ? '' : 'none';
     toast.classList.remove('hidden');
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.add('hidden'), 5000);
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 1500);
 }
 
 // ==================== UNDO ====================
@@ -899,6 +926,9 @@ function selectAI(el, name) {
     selectedAI = name;
     document.querySelectorAll('#aiChips .chip').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
+    // Update open-button label if result panel is visible
+    const btn = document.getElementById('openAIBtn');
+    if (btn) btn.textContent = `開啟 ${name}`;
 }
 function selectExpiringIngredients() {
     fridge.filter(i => { const r=getExpiryDays(i); return r>=0 && r<=3; })
@@ -953,6 +983,7 @@ ${custom ? '\n【特別需求】\n' + custom : ''}
     lastPrompt = prompt;
     document.getElementById('cookResult').textContent = prompt;
     document.getElementById('cookResultWrap').style.display = '';
+    document.getElementById('openAIBtn').textContent = `開啟 ${selectedAI}`;
 
     // Increment usage count
     selectedIngredients.forEach(name => {
@@ -964,20 +995,24 @@ ${custom ? '\n【特別需求】\n' + custom : ''}
 
 function copyPrompt() {
     if (!lastPrompt) return;
-    navigator.clipboard.writeText(lastPrompt).then(() => showToast('已複製！'));
+    copySync(lastPrompt);
+    showToast('已複製！');
 }
 function openAI() {
     if (!lastPrompt) return;
-    navigator.clipboard.writeText(lastPrompt).then(() => {
-        const deeplink = selectedAI === 'ChatGPT' ? 'chatgpt://' : 'claude://';
-        const fallback  = selectedAI === 'ChatGPT' ? 'https://chatgpt.com' : 'https://claude.ai';
-        window.location.href = deeplink;
-        setTimeout(() => { window.location.href = fallback; }, 1500);
-        showToast('已複製！請貼上到 AI 對話框');
-    });
+    // Step 1: sync copy — must happen before any async/navigation to keep iOS gesture context
+    copySync(lastPrompt);
+    // Step 2: auto-save record
+    doSaveHistory();
+    // Step 3: navigate to App via URL scheme (synchronous, no setTimeout fallback)
+    const cfg = AI_CONFIG[selectedAI] || AI_CONFIG['ChatGPT'];
+    window.location.href = cfg.scheme;
+    // Brief hint — user sees it when they return to this tab
+    showToast('已複製！在 App 中長按貼上');
 }
-function saveHistory() {
-    if (!lastPrompt) return;
+// Internal save — called by openAI automatically; no toast needed
+function doSaveHistory() {
+    if (!lastPrompt || !selectedIngredients.length) return;
     const selTools = tools.filter(t => t.selected).map(t => t.name);
     const now = new Date();
     history.unshift({
@@ -987,7 +1022,6 @@ function saveHistory() {
         ai: selectedAI, note: '', starred: false
     });
     safeSet('history_v4', history);
-    showToast('已儲存料理記錄');
 }
 
 // ==================== FRIDGE TAB ====================
@@ -1351,12 +1385,12 @@ ${fridge.length ? fridge.map(i=>`• ${i.name}（${i.cat}，${i.storage}）`).jo
 4. 說明 2–3 種可以搭配這些食材的簡單料理`;
     document.getElementById('shopAIResult').textContent = lastShopPrompt;
 }
-function copyShopPrompt() { navigator.clipboard.writeText(lastShopPrompt).then(() => showToast('已複製！')); }
+function copyShopPrompt() { copySync(lastShopPrompt); showToast('已複製！'); }
 function openAIForShop() {
-    navigator.clipboard.writeText(lastShopPrompt).then(() => {
-        window.location.href = 'chatgpt://';
-        setTimeout(() => { window.location.href = 'https://chatgpt.com'; }, 1500);
-    });
+    copySync(lastShopPrompt);
+    const cfg = AI_CONFIG[selectedAI] || AI_CONFIG['ChatGPT'];
+    window.location.href = cfg.scheme;
+    showToast('已複製！在 App 中長按貼上');
 }
 
 // ==================== HISTORY ====================
