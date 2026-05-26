@@ -7,6 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="我的冰箱">
     <meta name="theme-color" content="#d97706">
+    <link rel="manifest" href="manifest.json">
     <title>我的冰箱 AI 主廚</title>
     <style>
         :root {
@@ -19,6 +20,7 @@
             --border: #e7e5e4;
             --accent: #fef3c7;
             --danger: #ef4444;
+            --success: #22c55e;
             --nav-h: 62px;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
@@ -50,634 +52,1417 @@
         .nav-btn.active { color: var(--primary); }
 
         /* Tabs */
-        .tab { display: none; padding: 16px 16px 20px; }
-        .tab.active { display: block; animation: up 0.2s ease; }
-        @keyframes up { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
-
-        /* Typography */
-        .page-title { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
-        .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
-        .section-title { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 10px; }
+        .tab { display: none; }
+        .tab.active { display: block; }
 
         /* Card */
-        .card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
-
-        /* Inputs */
-        input[type=text], select, textarea {
-            font-family: inherit; font-size: 16px;
-            padding: 12px 14px; border: 1.5px solid var(--border);
-            border-radius: 10px; background: #fafaf9; color: var(--text);
-            width: 100%; -webkit-appearance: none;
+        .card {
+            background: var(--white); border-radius: 12px;
+            padding: 16px; margin: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
         }
-        input[type=text]:focus, select:focus { outline: none; border-color: var(--primary); background: var(--white); }
-        select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+        /* Header */
+        .page-header {
+            background: var(--white); padding: 16px 16px 12px;
+            border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50;
+        }
+        .page-header h2 { font-size: 20px; font-weight: 700; }
 
         /* Buttons */
-        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: none; border-radius: 11px; font-family: inherit; font-weight: 700; cursor: pointer; transition: opacity .15s; }
-        .btn:active { opacity: .72; }
-        .btn-sm { padding: 10px 15px; font-size: 14px; }
-        .btn-lg { padding: 15px; font-size: 16px; width: 100%; }
-        .btn-dark { background: var(--text); color: white; }
-        .btn-outline { background: var(--white); color: var(--text); border: 1.5px solid var(--border); }
-        .btn-gpt { background: #10a37f; color: white; }
-        .btn-claude { background: #c96a1e; color: white; }
-        .btn-gemini { background: #1d4ed8; color: white; }
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            gap: 6px; padding: 10px 18px; border-radius: 10px; font-size: 14px;
+            font-weight: 600; cursor: pointer; border: none; font-family: inherit;
+            transition: opacity 0.15s;
+        }
+        .btn:active { opacity: 0.8; }
+        .btn-primary { background: var(--primary); color: var(--white); }
+        .btn-outline { background: none; border: 1.5px solid var(--border); color: var(--text); }
+        .btn-danger { background: var(--danger); color: var(--white); }
+        .btn-sm { padding: 7px 12px; font-size: 12px; border-radius: 8px; }
+        .btn-block { width: 100%; }
+
+        /* Input */
+        input, select, textarea {
+            font-family: inherit; font-size: 15px; border: 1.5px solid var(--border);
+            border-radius: 10px; padding: 10px 12px; width: 100%;
+            background: var(--bg); color: var(--text); outline: none;
+            transition: border-color 0.15s;
+        }
+        input:focus, select:focus, textarea:focus { border-color: var(--primary); background: var(--white); }
+        label { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 4px; display: block; }
 
         /* Chips */
         .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-        .chip { padding: 9px 14px; border-radius: 20px; font-size: 14px; font-weight: 500; border: 1.5px solid var(--border); background: var(--white); cursor: pointer; transition: all .15s; user-select: none; }
-        .chip.on { background: var(--accent); border-color: var(--primary); color: #92400e; font-weight: 700; }
+        .chip {
+            padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+            cursor: pointer; border: 2px solid var(--border); background: var(--white);
+            color: var(--text); transition: all 0.15s;
+        }
+        .chip.selected { background: var(--primary); color: var(--white); border-color: var(--primary); }
+        .chip.expiring { border-color: var(--danger); color: var(--danger); }
+        .chip.expiring.selected { background: var(--danger); color: var(--white); }
 
-        /* Ingredient rows */
-        .item-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--white); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
-        .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-        .dot.g { background: #22c55e; }
-        .dot.y { background: #f59e0b; }
-        .dot.r { background: var(--danger); }
-        .item-name { flex: 1; font-size: 15px; font-weight: 600; }
-        .item-meta { font-size: 12px; color: var(--muted); }
-        .icon-btn { background: none; border: none; font-size: 20px; padding: 6px; border-radius: 8px; cursor: pointer; line-height: 1; flex-shrink: 0; }
-        .icon-btn:active { background: var(--bg); }
+        /* Fridge item */
+        .fridge-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 11px 0; border-bottom: 1px solid var(--border);
+        }
+        .fridge-item:last-child { border-bottom: none; }
+        .fridge-item .name { flex: 1; font-size: 15px; font-weight: 600; }
+        .fridge-item .date { font-size: 11px; color: var(--muted); }
+        .fridge-item .days { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+        .days.ok { background: #dcfce7; color: #16a34a; }
+        .days.soon { background: #fef3c7; color: #d97706; }
+        .days.expired { background: #fee2e2; color: var(--danger); }
 
-        /* Cook chips */
-        .cook-chip { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-radius: 10px; font-size: 14px; border: 1.5px solid var(--border); background: #fafaf9; cursor: pointer; transition: all .15s; user-select: none; }
-        .cook-chip.on { background: var(--accent); border-color: var(--primary); color: #92400e; font-weight: 700; }
-
-        /* Tool chips */
-        .tool-chip { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; font-size: 14px; border: 1.5px solid var(--border); background: #fafaf9; cursor: pointer; }
-        .tool-chip input { accent-color: var(--primary); width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
-
-        /* AI button stack */
-        .ai-stack { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-
-        /* History */
-        .h-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
-        .h-card.starred { border-color: #fbbf24; background: #fffbeb; }
-        .h-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
-        .h-date { font-size: 12px; color: var(--muted); padding-top: 2px; }
-        .h-actions { display: flex; gap: 0; flex-shrink: 0; }
-        .h-items { font-size: 14px; font-weight: 700; color: var(--primary-dark); margin-bottom: 3px; }
-        .h-tools { font-size: 13px; color: var(--text); }
-        .h-note { font-size: 13px; color: var(--muted); font-style: italic; margin-top: 8px; padding: 8px 10px; background: var(--bg); border-radius: 8px; }
-        .note-row { display: flex; gap: 6px; margin-top: 10px; }
-        .note-row input { flex: 1; padding: 9px 12px; font-size: 15px; }
-
-        /* Survey */
-        .survey-q { margin-bottom: 22px; }
-        .survey-q:last-child { margin-bottom: 0; }
-        .survey-q-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
-
-        /* Quick adds */
-        .quick-adds { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
-        .q-tag { font-size: 13px; padding: 7px 12px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
-        .q-tag:active { background: var(--accent); }
-
-        /* Legend */
-        .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
-        .legend span { display: flex; align-items: center; gap: 5px; }
-
-        /* Input row */
-        .row { display: flex; gap: 8px; margin-bottom: 8px; }
-        .row > * { flex: 1; }
-        .row > .flex-none { flex: none; }
+        /* Category section */
+        .cat-section { margin: 12px; }
+        .cat-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; background: var(--white); border-radius: 10px;
+            cursor: pointer; margin-bottom: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .cat-header .cat-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .cat-header .cat-count { font-size: 12px; color: var(--muted); background: var(--bg); padding: 2px 8px; border-radius: 10px; }
+        .cat-header .cat-arrow { font-size: 14px; color: var(--muted); transition: transform 0.2s; }
+        .cat-header.collapsed .cat-arrow { transform: rotate(-90deg); }
+        .cat-body { background: var(--white); border-radius: 10px; padding: 0 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; }
+        .cat-body.hidden { display: none; }
 
         /* Toast */
-        #toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.82); color: white; padding: 11px 20px; border-radius: 24px; font-size: 14px; font-family: inherit; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 999; white-space: nowrap; max-width: 90vw; }
+        .toast {
+            position: fixed; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 12px);
+            left: 12px; right: 12px; background: #1c1917; color: var(--white);
+            border-radius: 12px; padding: 14px 16px; display: flex;
+            align-items: center; justify-content: space-between; gap: 12px;
+            z-index: 1000; font-size: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            transform: translateY(0); transition: transform 0.3s, opacity 0.3s; opacity: 1;
+        }
+        .toast.hidden { transform: translateY(20px); opacity: 0; pointer-events: none; }
+        .toast-undo { background: var(--primary); color: var(--white); border: none; font-family: inherit; font-size: 13px; font-weight: 700; padding: 6px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
 
-        /* Empty */
-        .empty { text-align: center; padding: 32px 16px; color: var(--muted); font-size: 14px; line-height: 1.8; }
-        .empty-icon { font-size: 42px; display: block; margin-bottom: 8px; }
+        /* Expiry banner */
+        .expiry-banner {
+            margin: 12px; background: #fee2e2; border: 1.5px solid #fca5a5;
+            border-radius: 10px; padding: 12px 14px; display: flex;
+            align-items: center; gap: 10px; font-size: 13px; color: #991b1b;
+        }
+        .expiry-banner .banner-icon { font-size: 18px; }
+        .expiry-banner .banner-text { flex: 1; font-weight: 600; }
+        .expiry-banner .banner-btn { background: var(--danger); color: var(--white); border: none; font-family: inherit; font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
 
-        /* PWA tip */
-        .pwa-tip { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 14px; font-size: 13px; color: #166534; margin-bottom: 12px; display: flex; gap: 8px; align-items: flex-start; }
-        .pwa-tip-close { background: none; border: none; font-size: 20px; color: #166534; cursor: pointer; flex-shrink: 0; padding: 0; line-height: 1; }
+        /* Autocomplete */
+        .autocomplete-wrap { position: relative; }
+        .autocomplete-list {
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 200;
+            background: var(--white); border: 1.5px solid var(--primary);
+            border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            max-height: 180px; overflow-y: auto; margin-top: 2px;
+        }
+        .autocomplete-item {
+            padding: 10px 14px; font-size: 14px; cursor: pointer; border-bottom: 1px solid var(--border);
+        }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:active { background: var(--accent); }
+
+        /* Batch bar */
+        .batch-bar {
+            position: fixed; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+            left: 0; right: 0; background: var(--white); border-top: 1.5px solid var(--border);
+            padding: 10px 16px; display: flex; align-items: center; gap: 10px;
+            z-index: 90; box-shadow: 0 -2px 10px rgba(0,0,0,0.07);
+        }
+        .batch-bar.hidden { display: none; }
+        .batch-bar .batch-count { flex: 1; font-size: 14px; font-weight: 700; color: var(--text); }
+
+        /* Checkbox */
+        .item-checkbox { width: 22px; height: 22px; accent-color: var(--primary); cursor: pointer; }
+
+        /* History item */
+        .hist-item {
+            padding: 12px 0; border-bottom: 1px solid var(--border);
+        }
+        .hist-item:last-child { border-bottom: none; }
+        .hist-meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+        .hist-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+        .hist-note { font-size: 13px; color: var(--muted); font-style: italic; }
+        .hist-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+        /* Shopping */
+        .shop-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .shop-item:last-child { border-bottom: none; }
+        .shop-item .shop-name { flex: 1; font-size: 15px; font-weight: 600; }
+        .shop-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--primary); }
+        .shop-item.checked .shop-name { text-decoration: line-through; color: var(--muted); }
+
+        /* Settings */
+        .setting-row {
+            display: flex; align-items: center; padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .setting-row:last-child { border-bottom: none; }
+        .setting-label { flex: 1; font-size: 15px; font-weight: 600; }
+        .setting-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .toggle { position: relative; width: 48px; height: 28px; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; inset: 0; background: var(--border); border-radius: 14px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .toggle-slider:before {
+            content: ''; position: absolute; width: 22px; height: 22px;
+            border-radius: 50%; background: var(--white); top: 3px; left: 3px;
+            transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .toggle input:checked + .toggle-slider { background: var(--primary); }
+        .toggle input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500;
+            display: flex; align-items: flex-end; justify-content: center;
+        }
+        .modal-overlay.hidden { display: none; }
+        .modal {
+            background: var(--white); width: 100%; max-width: 480px;
+            border-radius: 20px 20px 0 0; padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+
+        /* Questionnaire */
+        .q-step { display: none; }
+        .q-step.active { display: block; }
+        .q-option {
+            display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+            border: 2px solid var(--border); border-radius: 10px; cursor: pointer;
+            margin-bottom: 8px; font-size: 14px; font-weight: 600; transition: all 0.15s;
+        }
+        .q-option.selected { border-color: var(--primary); background: var(--accent); color: var(--primary); }
+        .q-option .q-icon { font-size: 24px; }
+
+        /* Cook result */
+        .cook-result { background: var(--bg); border-radius: 10px; padding: 14px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+
+        /* Misc */
+        .row { display: flex; gap: 8px; align-items: flex-end; }
+        .flex-1 { flex: 1; }
+        .gap-8 { gap: 8px; }
+        .mt-8 { margin-top: 8px; }
+        .mt-12 { margin-top: 12px; }
+        .mt-16 { margin-top: 16px; }
+        .mb-8 { margin-bottom: 8px; }
+        .empty { text-align: center; color: var(--muted); padding: 32px 16px; font-size: 14px; }
+        .section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 8px; }
+        .divider { height: 1px; background: var(--border); margin: 12px 0; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .badge-warn { background: #fef3c7; color: #d97706; }
+        .badge-danger { background: #fee2e2; color: var(--danger); }
     </style>
 </head>
 <body>
 
-<!-- ═══ Tab: Cook ═══════════════════════════════════════ -->
-<div id="tab-cook" class="tab active">
-    <div class="page-title">今晚吃什麼？🍳</div>
-    <div class="page-sub">從冰箱挑選食材，一鍵把食譜需求傳給 AI</div>
+<!-- ==================== TOAST ==================== -->
+<div class="toast hidden" id="toast">
+    <span id="toastMsg"></span>
+    <button class="toast-undo" id="toastUndo" onclick="doUndo()">復原</button>
+</div>
 
-    <div id="pwa-tip" class="pwa-tip">
-        <div style="flex:1">📲 <strong>加入主畫面</strong>：點瀏覽器分享按鈕 →「加入主畫面」，即可像 App 一樣使用！</div>
-        <button class="pwa-tip-close" onclick="dismissTip()">×</button>
-    </div>
+<!-- ==================== BATCH BAR ==================== -->
+<div class="batch-bar hidden" id="batchBar">
+    <span class="batch-count" id="batchCount">已選 0 項</span>
+    <button class="btn btn-outline btn-sm" onclick="batchAddToCook()">加入料理</button>
+    <button class="btn btn-danger btn-sm" onclick="batchDelete()">刪除</button>
+    <button class="btn btn-outline btn-sm" onclick="exitBatchMode()">取消</button>
+</div>
 
-    <div class="card">
-        <div class="section-title">1. 選擇今晚要用的食材</div>
-        <div id="cook-chips" class="chips" style="gap:8px"></div>
-        <div id="cook-empty" class="empty" style="display:none;padding:16px 0">
-            <span class="empty-icon">🧊</span>冰箱是空的，請先去「我的冰箱」新增食材
+<!-- ==================== MODALS ==================== -->
+<!-- Edit history modal -->
+<div class="modal-overlay hidden" id="editHistModal">
+    <div class="modal">
+        <div class="modal-title">編輯記錄</div>
+        <input type="hidden" id="editHistIdx">
+        <label>備註</label>
+        <textarea id="editHistNote" rows="3" style="resize:none;" placeholder="加點備註..."></textarea>
+        <div class="row mt-12">
+            <button class="btn btn-outline flex-1" onclick="closeEditHist()">取消</button>
+            <button class="btn btn-primary flex-1" onclick="saveEditHist()">儲存</button>
         </div>
-    </div>
-
-    <div class="card">
-        <div class="section-title">2. 可用的料理工具</div>
-        <div class="chips">
-            <label class="tool-chip"><input type="checkbox" name="tool" value="平底鍋"> 平底鍋</label>
-            <label class="tool-chip"><input type="checkbox" name="tool" value="電鍋"> 電鍋</label>
-            <label class="tool-chip"><input type="checkbox" name="tool" value="氣炸鍋"> 氣炸鍋</label>
-            <label class="tool-chip"><input type="checkbox" name="tool" value="快煮鍋"> 快煮鍋</label>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="section-title">3. 份量與備註</div>
-        <select id="portion" style="margin-bottom:10px">
-            <option>1 人份</option>
-            <option selected>2 人份</option>
-            <option>3-4 人份</option>
-            <option>5 人份以上</option>
-        </select>
-        <input type="text" id="cook-notes" placeholder="特殊備註（不吃辣、要有湯品...）">
-    </div>
-
-    <div class="ai-stack">
-        <button class="btn btn-lg btn-gpt" onclick="generateRecipePrompt('ChatGPT')">複製並開啟 ChatGPT</button>
-        <button class="btn btn-lg btn-claude" onclick="generateRecipePrompt('Claude')">複製並開啟 Claude</button>
-        <button class="btn btn-lg btn-gemini" onclick="generateRecipePrompt('Gemini')">複製並開啟 Gemini</button>
     </div>
 </div>
 
-<!-- ═══ Tab: Fridge ═════════════════════════════════════ -->
-<div id="tab-fridge" class="tab">
-    <div class="page-title">🧊 我的冰箱</div>
-    <div class="page-sub">記錄買回來的食材，購買日期自動追蹤新鮮度</div>
-
-    <div class="card">
-        <div class="section-title">新增食材</div>
-        <div class="row">
-            <input type="text" id="new-ingredient" placeholder="輸入食材名稱">
-            <button class="btn btn-outline btn-sm flex-none" id="voice-btn" onclick="startVoice()" style="padding:12px 14px;font-size:20px">🎤</button>
+<!-- Edit fridge item modal -->
+<div class="modal-overlay hidden" id="editFridgeModal">
+    <div class="modal">
+        <div class="modal-title">編輯食材</div>
+        <input type="hidden" id="editFridgeIdx">
+        <div class="mb-8">
+            <label>名稱</label>
+            <input id="editFridgeName" type="text">
         </div>
-        <div class="row">
-            <select id="new-cat">
+        <div class="mb-8">
+            <label>分類</label>
+            <select id="editFridgeCat">
                 <option value="🥩 肉類">🥩 肉類</option>
-                <option value="🥬 蔬菜" selected>🥬 蔬菜</option>
                 <option value="🐟 海鮮">🐟 海鮮</option>
+                <option value="🥬 蔬菜">🥬 蔬菜</option>
                 <option value="🥚 蛋奶">🥚 蛋奶</option>
                 <option value="🥫 其他">🥫 其他</option>
             </select>
-            <button class="btn btn-dark btn-sm flex-none" onclick="addToFridge()">放入冰箱</button>
         </div>
-        <div class="quick-adds">
-            <span class="q-tag" onclick="quickAdd('雞蛋','🥚 蛋奶')">雞蛋</span>
-            <span class="q-tag" onclick="quickAdd('蔥蒜','🥬 蔬菜')">蔥蒜</span>
-            <span class="q-tag" onclick="quickAdd('牛肉','🥩 肉類')">牛肉</span>
-            <span class="q-tag" onclick="quickAdd('豆腐','🥫 其他')">豆腐</span>
-            <span class="q-tag" onclick="quickAdd('高麗菜','🥬 蔬菜')">高麗菜</span>
-            <span class="q-tag" onclick="quickAdd('雞胸肉','🥩 肉類')">雞胸肉</span>
+        <div class="mb-8">
+            <label>購買日期</label>
+            <input id="editFridgeDate" type="date">
         </div>
-    </div>
-
-    <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <div class="section-title" style="margin-bottom:0">庫存清單</div>
-            <div class="legend">
-                <span><span class="dot g"></span>0-3天</span>
-                <span><span class="dot y"></span>4-7天</span>
-                <span><span class="dot r"></span>8天+</span>
-            </div>
+        <div class="row mt-12">
+            <button class="btn btn-outline flex-1" onclick="closeEditFridge()">取消</button>
+            <button class="btn btn-primary flex-1" onclick="saveEditFridge()">儲存</button>
         </div>
-        <div id="fridge-list"></div>
     </div>
 </div>
 
-<!-- ═══ Tab: Survey ═════════════════════════════════════ -->
-<div id="tab-survey" class="tab">
-    <div class="page-title">🛒 採購建議</div>
-    <div class="page-sub">不知道吃什麼？回答幾題，讓 AI 幫你規劃本週採購清單</div>
+<!-- Tool manager modal -->
+<div class="modal-overlay hidden" id="toolModal">
+    <div class="modal">
+        <div class="modal-title">管理料理工具</div>
+        <div id="toolList" class="mb-12"></div>
+        <div class="row mb-12">
+            <input id="newToolInput" type="text" placeholder="新增工具名稱..." class="flex-1">
+            <button class="btn btn-primary btn-sm" onclick="addTool()">新增</button>
+        </div>
+        <button class="btn btn-outline btn-block" onclick="closeToolModal()">完成</button>
+    </div>
+</div>
+
+<!-- Sync modal -->
+<div class="modal-overlay hidden" id="syncModal">
+    <div class="modal">
+        <div class="modal-title">跨裝置同步</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">複製同步碼到另一台裝置的「匯入同步碼」貼上即可同步冰箱資料。</p>
+        <label>我的同步碼（匯出）</label>
+        <textarea id="syncExportCode" rows="4" readonly style="resize:none;font-size:11px;word-break:break-all;" class="mb-8"></textarea>
+        <button class="btn btn-primary btn-block mb-12" onclick="copySyncCode()">複製同步碼</button>
+        <div class="divider"></div>
+        <label>匯入同步碼</label>
+        <textarea id="syncImportInput" rows="4" style="resize:none;font-size:11px;" placeholder="貼上同步碼..."></textarea>
+        <div class="row mt-8">
+            <button class="btn btn-outline flex-1" onclick="closeSyncModal()">取消</button>
+            <button class="btn btn-primary flex-1" onclick="importSyncCode()">匯入</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== TABS ==================== -->
+
+<!-- TAB: 料理 -->
+<div class="tab active" id="tab-cook">
+    <div class="page-header">
+        <h2>🍳 AI 料理助手</h2>
+    </div>
+    <div id="cookExpiryBanner"></div>
+    <div class="card">
+        <div class="section-title">選擇食材</div>
+        <div class="chips" id="ingredientChips"></div>
+        <div class="row mt-12">
+            <button class="btn btn-outline btn-sm" onclick="selectExpiringIngredients()">⚠️ 快到期</button>
+            <button class="btn btn-outline btn-sm" onclick="clearIngredientSelection()">清除</button>
+        </div>
+    </div>
+    <div class="card">
+        <div class="section-title">料理工具</div>
+        <div class="chips" id="toolChips"></div>
+        <button class="btn btn-outline btn-sm mt-8" onclick="openToolModal()">⚙️ 管理工具</button>
+    </div>
+    <div class="card">
+        <div class="section-title">AI 助手</div>
+        <div class="chips" id="aiChips">
+            <div class="chip selected" onclick="selectAI(this,'ChatGPT')">ChatGPT</div>
+            <div class="chip" onclick="selectAI(this,'Claude')">Claude</div>
+        </div>
+        <div class="mt-12">
+            <label>自訂需求（可選）</label>
+            <textarea id="customRequest" rows="2" style="resize:none;" placeholder="例如：低卡、省時、適合小孩..."></textarea>
+        </div>
+        <button class="btn btn-primary btn-block mt-12" onclick="generatePrompt()">✨ 生成料理建議</button>
+    </div>
+    <div id="cookResultWrap" style="display:none;">
+        <div class="card">
+            <div class="section-title">料理提示詞</div>
+            <div class="cook-result" id="cookResult"></div>
+            <div class="row mt-12" style="flex-wrap:wrap;gap:8px;">
+                <button class="btn btn-primary btn-sm" onclick="openAI()">開啟 AI App</button>
+                <button class="btn btn-outline btn-sm" onclick="copyPrompt()">複製</button>
+                <button class="btn btn-outline btn-sm" onclick="saveHistory()">儲存記錄</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TAB: 冰箱 -->
+<div class="tab" id="tab-fridge">
+    <div class="page-header" style="display:flex;align-items:center;gap:8px;">
+        <h2 style="flex:1;">🧊 我的冰箱</h2>
+        <button class="btn btn-outline btn-sm" onclick="toggleBatchMode()">管理</button>
+        <button class="btn btn-primary btn-sm" onclick="showAddFridge()">+ 新增</button>
+    </div>
+
+    <!-- Search/filter bar -->
+    <div style="padding:10px 12px 4px;">
+        <input id="fridgeSearch" type="text" placeholder="搜尋食材..." oninput="renderFridge()">
+    </div>
+
+    <!-- Add item form -->
+    <div class="card" id="addFridgeForm" style="display:none;">
+        <div class="section-title">新增食材</div>
+        <div class="mb-8 autocomplete-wrap">
+            <label>食材名稱</label>
+            <input id="newItemName" type="text" placeholder="輸入食材名稱..." oninput="onNameInput()" autocomplete="off">
+            <div class="autocomplete-list hidden" id="autocompleteList"></div>
+        </div>
+        <div class="mb-8">
+            <label>分類</label>
+            <select id="newItemCat">
+                <option value="🥩 肉類">🥩 肉類</option>
+                <option value="🐟 海鮮">🐟 海鮮</option>
+                <option value="🥬 蔬菜">🥬 蔬菜</option>
+                <option value="🥚 蛋奶">🥚 蛋奶</option>
+                <option value="🥫 其他">🥫 其他</option>
+            </select>
+        </div>
+        <div class="mb-8">
+            <label>購買日期</label>
+            <input id="newItemDate" type="date">
+        </div>
+        <div class="row">
+            <button class="btn btn-outline flex-1" onclick="hideAddFridge()">取消</button>
+            <button class="btn btn-primary flex-1" onclick="addFridgeItem()">新增</button>
+        </div>
+        <div class="mt-8" style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-outline btn-sm" onclick="startBarcode()">📷 掃條碼</button>
+            <button class="btn btn-outline btn-sm" onclick="startVoice()">🎤 語音</button>
+        </div>
+        <div id="barcodeStatus" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
+    </div>
+
+    <div id="fridgeList"></div>
+</div>
+
+<!-- TAB: 採購 -->
+<div class="tab" id="tab-shop">
+    <div class="page-header" style="display:flex;align-items:center;gap:8px;">
+        <h2 style="flex:1;">🛒 採購清單</h2>
+        <button class="btn btn-outline btn-sm" onclick="clearCheckedShop()">清除已勾</button>
+    </div>
+    <div class="card">
+        <div class="section-title">AI 推薦食材採購</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">不知道要買什麼？讓 AI 根據你的偏好推薦！</p>
+        <button class="btn btn-primary btn-block" onclick="startQuestionnaire()">🤖 開始問卷推薦</button>
+    </div>
+    <div class="card">
+        <div class="row mb-8">
+            <input id="newShopItem" type="text" placeholder="手動新增..." class="flex-1" onkeydown="if(event.key==='Enter')addShopItem()">
+            <button class="btn btn-primary btn-sm" onclick="addShopItem()">新增</button>
+        </div>
+        <div id="shopList"><div class="empty">採購清單是空的</div></div>
+    </div>
+
+    <!-- Questionnaire -->
+    <div class="card" id="questionnaireWrap" style="display:none;">
+        <div class="modal-title">🤖 AI 食材採購推薦</div>
+        <!-- Step 1 -->
+        <div class="q-step active" id="qStep1">
+            <p style="font-size:14px;font-weight:600;margin-bottom:12px;">你通常幾個人一起吃飯？</p>
+            <div class="q-option" onclick="qSelect(1,'people',this,'1人')"><span class="q-icon">🧍</span>1 人</div>
+            <div class="q-option" onclick="qSelect(1,'people',this,'2人')"><span class="q-icon">👫</span>2 人</div>
+            <div class="q-option" onclick="qSelect(1,'people',this,'3-4人')"><span class="q-icon">👨‍👩‍👧</span>3–4 人</div>
+            <div class="q-option" onclick="qSelect(1,'people',this,'5人以上')"><span class="q-icon">👨‍👩‍👧‍👦</span>5 人以上</div>
+        </div>
+        <!-- Step 2 -->
+        <div class="q-step" id="qStep2">
+            <p style="font-size:14px;font-weight:600;margin-bottom:12px;">飲食偏好？</p>
+            <div class="q-option" onclick="qSelect(2,'diet',this,'均衡飲食')"><span class="q-icon">🥗</span>均衡飲食</div>
+            <div class="q-option" onclick="qSelect(2,'diet',this,'高蛋白低脂')"><span class="q-icon">💪</span>高蛋白低脂</div>
+            <div class="q-option" onclick="qSelect(2,'diet',this,'素食')"><span class="q-icon">🌱</span>素食</div>
+            <div class="q-option" onclick="qSelect(2,'diet',this,'海鮮愛好者')"><span class="q-icon">🦐</span>海鮮愛好者</div>
+        </div>
+        <!-- Step 3 -->
+        <div class="q-step" id="qStep3">
+            <p style="font-size:14px;font-weight:600;margin-bottom:12px;">料理時間偏好？</p>
+            <div class="q-option" onclick="qSelect(3,'time',this,'快速（15分鐘內）')"><span class="q-icon">⚡</span>快速（15分鐘內）</div>
+            <div class="q-option" onclick="qSelect(3,'time',this,'一般（30分鐘）')"><span class="q-icon">🕐</span>一般（30分鐘）</div>
+            <div class="q-option" onclick="qSelect(3,'time',this,'慢燉（1小時+）')"><span class="q-icon">🍲</span>慢燉（1小時+）</div>
+        </div>
+        <!-- Step 4 result -->
+        <div class="q-step" id="qStep4">
+            <p style="font-size:14px;font-weight:600;margin-bottom:12px;">推薦採購的食材提示詞已生成：</p>
+            <div class="cook-result" id="shopAIResult"></div>
+            <div class="row mt-12">
+                <button class="btn btn-outline flex-1" onclick="openAIForShop()">開啟 AI</button>
+                <button class="btn btn-outline flex-1" onclick="copyShopPrompt()">複製</button>
+            </div>
+        </div>
+        <div class="row mt-12">
+            <button class="btn btn-outline flex-1" onclick="closeQuestionnaire()">關閉</button>
+        </div>
+    </div>
+</div>
+
+<!-- TAB: 歷史 -->
+<div class="tab" id="tab-history">
+    <div class="page-header" style="display:flex;align-items:center;gap:8px;">
+        <h2 style="flex:1;">📖 料理歷史</h2>
+        <button class="btn btn-danger btn-sm" onclick="clearHistory()">清除全部</button>
+    </div>
+    <div class="card" id="historyList">
+        <div class="empty">尚無料理記錄</div>
+    </div>
+</div>
+
+<!-- TAB: 設定 -->
+<div class="tab" id="tab-settings">
+    <div class="page-header"><h2>⚙️ 設定</h2></div>
 
     <div class="card">
-        <div class="survey-q">
-            <div class="survey-q-title">1. 想吃什麼風格？（可多選）</div>
-            <div class="chips">
-                <div class="chip" data-g="style" onclick="toggleSurvey('style','台式家常',this)">🏠 台式家常</div>
-                <div class="chip" data-g="style" onclick="toggleSurvey('style','日式',this)">🍱 日式</div>
-                <div class="chip" data-g="style" onclick="toggleSurvey('style','韓式',this)">🥘 韓式</div>
-                <div class="chip" data-g="style" onclick="toggleSurvey('style','中式',this)">🥡 中式</div>
-                <div class="chip" data-g="style" onclick="toggleSurvey('style','西式',this)">🍝 西式</div>
-                <div class="chip" data-g="style" onclick="toggleSurvey('style','隨便都行',this)">✨ 隨便</div>
+        <div class="section-title">通知</div>
+        <div class="setting-row">
+            <div>
+                <div class="setting-label">到期提醒通知</div>
+                <div class="setting-sub">食材快到期時推送通知</div>
             </div>
-        </div>
-
-        <div class="survey-q">
-            <div class="survey-q-title">2. 幾個人吃？</div>
-            <div class="chips">
-                <div class="chip" data-g="portion" onclick="toggleSurvey('portion','1人份',this)">1人</div>
-                <div class="chip on" data-g="portion" onclick="toggleSurvey('portion','2人份',this)">2人</div>
-                <div class="chip" data-g="portion" onclick="toggleSurvey('portion','3-4人份',this)">3-4人</div>
-                <div class="chip" data-g="portion" onclick="toggleSurvey('portion','5人以上',this)">5人+</div>
-            </div>
-        </div>
-
-        <div class="survey-q">
-            <div class="survey-q-title">3. 採購預算</div>
-            <div class="chips">
-                <div class="chip" data-g="budget" onclick="toggleSurvey('budget','$200以內',this)">$200以內</div>
-                <div class="chip" data-g="budget" onclick="toggleSurvey('budget','$500左右',this)">$500左右</div>
-                <div class="chip" data-g="budget" onclick="toggleSurvey('budget','$1000左右',this)">$1000左右</div>
-                <div class="chip on" data-g="budget" onclick="toggleSurvey('budget','不限',this)">不限</div>
-            </div>
-        </div>
-
-        <div class="survey-q">
-            <div class="survey-q-title">4. 每天料理時間</div>
-            <div class="chips">
-                <div class="chip" data-g="time" onclick="toggleSurvey('time','30分鐘內',this)">⚡ 30分鐘內</div>
-                <div class="chip" data-g="time" onclick="toggleSurvey('time','約1小時',this)">🕐 約1小時</div>
-                <div class="chip on" data-g="time" onclick="toggleSurvey('time','不限',this)">😌 不限</div>
-            </div>
-        </div>
-
-        <div class="survey-q">
-            <div class="survey-q-title">5. 飲食限制（可多選）</div>
-            <div class="chips">
-                <div class="chip on" data-g="restrict" onclick="toggleSurvey('restrict','無',this)">無</div>
-                <div class="chip" data-g="restrict" onclick="toggleSurvey('restrict','不吃辣',this)">不吃辣</div>
-                <div class="chip" data-g="restrict" onclick="toggleSurvey('restrict','不吃牛肉',this)">不吃牛肉</div>
-                <div class="chip" data-g="restrict" onclick="toggleSurvey('restrict','不吃海鮮',this)">不吃海鮮</div>
-                <div class="chip" data-g="restrict" onclick="toggleSurvey('restrict','素食',this)">素食</div>
-            </div>
-        </div>
-
-        <div class="survey-q">
-            <div class="survey-q-title">6. 希望幾天份的食材？</div>
-            <div class="chips">
-                <div class="chip" data-g="days" onclick="toggleSurvey('days','3天',this)">3天</div>
-                <div class="chip on" data-g="days" onclick="toggleSurvey('days','5天',this)">5天</div>
-                <div class="chip" data-g="days" onclick="toggleSurvey('days','7天',this)">7天</div>
-            </div>
+            <label class="toggle">
+                <input type="checkbox" id="notifToggle" onchange="toggleNotif()">
+                <span class="toggle-slider"></span>
+            </label>
         </div>
     </div>
 
-    <div class="ai-stack">
-        <button class="btn btn-lg btn-gpt" onclick="generateSurveyPrompt('ChatGPT')">複製並開啟 ChatGPT</button>
-        <button class="btn btn-lg btn-claude" onclick="generateSurveyPrompt('Claude')">複製並開啟 Claude</button>
-        <button class="btn btn-lg btn-gemini" onclick="generateSurveyPrompt('Gemini')">複製並開啟 Gemini</button>
+    <div class="card">
+        <div class="section-title">資料管理</div>
+        <div class="setting-row">
+            <div class="flex-1">
+                <div class="setting-label">匯出資料</div>
+                <div class="setting-sub">下載 JSON 備份檔</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="exportData()">匯出</button>
+        </div>
+        <div class="setting-row">
+            <div class="flex-1">
+                <div class="setting-label">匯入資料</div>
+                <div class="setting-sub">從 JSON 備份還原</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('importFile').click()">匯入</button>
+            <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)">
+        </div>
+        <div class="setting-row">
+            <div class="flex-1">
+                <div class="setting-label">跨裝置同步</div>
+                <div class="setting-sub">用同步碼在不同裝置間同步冰箱</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="openSyncModal()">同步</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">危險操作</div>
+        <div class="setting-row">
+            <div class="flex-1">
+                <div class="setting-label" style="color:var(--danger);">清除所有資料</div>
+                <div class="setting-sub">刪除冰箱、歷史、設定</div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="clearAllData()">清除</button>
+        </div>
+        <div class="setting-row">
+            <div class="flex-1">
+                <div class="setting-label" style="color:var(--danger);">清除過期食材</div>
+                <div class="setting-sub">一鍵刪除所有已過期的食材</div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="clearExpiredItems()">清除</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">關於</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;">我的冰箱 AI 主廚 v4.0<br>資料儲存於裝置本機，不會上傳到伺服器。</p>
     </div>
 </div>
 
-<!-- ═══ Tab: History ════════════════════════════════════ -->
-<div id="tab-history" class="tab">
-    <div class="page-title">📖 歷史紀錄</div>
-    <div class="page-sub">查看過去組合，收藏成功菜單，加上個人備註</div>
-    <div id="history-list"></div>
-</div>
-
-<!-- Bottom Nav -->
+<!-- ==================== BOTTOM NAV ==================== -->
 <nav class="bottom-nav">
-    <button class="nav-btn active" id="nav-cook" onclick="switchTab('cook')">
-        <span class="icon">🍳</span>料理決策
+    <button class="nav-btn active" onclick="switchTab('cook',this)">
+        <span class="icon">🍳</span>料理
     </button>
-    <button class="nav-btn" id="nav-fridge" onclick="switchTab('fridge')">
-        <span class="icon">🧊</span>我的冰箱
+    <button class="nav-btn" onclick="switchTab('fridge',this)">
+        <span class="icon">🧊</span>冰箱
     </button>
-    <button class="nav-btn" id="nav-survey" onclick="switchTab('survey')">
-        <span class="icon">🛒</span>採購建議
+    <button class="nav-btn" onclick="switchTab('shop',this)">
+        <span class="icon">🛒</span>採購
     </button>
-    <button class="nav-btn" id="nav-history" onclick="switchTab('history')">
-        <span class="icon">📖</span>歷史紀錄
+    <button class="nav-btn" onclick="switchTab('history',this)">
+        <span class="icon">📖</span>歷史
+    </button>
+    <button class="nav-btn" onclick="switchTab('settings',this)">
+        <span class="icon">⚙️</span>設定
     </button>
 </nav>
 
-<div id="toast"></div>
-
 <script>
-'use strict';
-
-function today() { return new Date().toISOString().slice(0, 10); }
-function daysSince(d) { return Math.floor((Date.now() - new Date(d)) / 86400000); }
-function freshnessClass(d) { const n = daysSince(d); return n <= 3 ? 'g' : n <= 7 ? 'y' : 'r'; }
-function freshnessLabel(d) {
-    const n = daysSince(d);
-    return n === 0 ? '今天加入' : n === 1 ? '昨天加入' : n + '天前加入';
-}
-function esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function showToast(msg) {
-    const el = document.getElementById('toast');
-    el.textContent = msg; el.style.opacity = '1';
-    clearTimeout(el._t);
-    el._t = setTimeout(() => el.style.opacity = '0', 2400);
-}
-
-// State
-let fridge = JSON.parse(localStorage.getItem('fridge_v3')) || [
-    {name:'雞蛋', cat:'🥚 蛋奶', date:today()},
-    {name:'牛肉', cat:'🥩 肉類', date:today()},
-    {name:'高麗菜', cat:'🥬 蔬菜', date:today()},
-    {name:'蔥蒜', cat:'🥬 蔬菜', date:today()},
+// ==================== CONSTANTS ====================
+const CATEGORIES = ['🥩 肉類', '🐟 海鮮', '🥬 蔬菜', '🥚 蛋奶', '🥫 其他'];
+const FOOD_DB = [
+    '豬肉','牛肉','雞肉','羊肉','豬絞肉','雞胸肉','雞腿肉','豬里肌','牛腱','豬五花',
+    '培根','香腸','火腿','雞翅','排骨','豬腳','牛絞肉','鴨肉','豬肝',
+    '鮭魚','蝦子','花枝','透抽','蛤蜊','吻仔魚','虱目魚','鯛魚','蟹腳','干貝',
+    '小卷','牡蠣','秋刀魚','鱈魚','鮪魚','魚板','魚丸','蝦仁',
+    '高麗菜','菠菜','空心菜','地瓜葉','A菜','小白菜','青江菜','韭菜','芹菜',
+    '蘿蔔','馬鈴薯','地瓜','南瓜','番茄','小黃瓜','茄子','四季豆','玉米','絲瓜',
+    '苦瓜','洋蔥','青蔥','薑','蒜頭','辣椒','花椰菜','青椒','香菇','金針菇',
+    '杏鮑菇','木耳','豆芽菜','豌豆','豆干',
+    '雞蛋','豆腐','嫩豆腐','板豆腐','鮮奶','優格','起司','奶油','豆漿',
+    '白米','麵條','義大利麵','冬粉','米粉','烏龍麵','吐司','鍋巴',
+    '醬油','沙拉油','麻油','鹽','糖','醋','味噌','豆瓣醬','辣醬','番茄醬',
+    '太白粉','玉米粉','麵粉','雞高湯','鮮奶油'
 ];
-let history = JSON.parse(localStorage.getItem('history_v3')) || [];
-let savedTools = JSON.parse(localStorage.getItem('tools_v3')) || ['平底鍋', '電鍋'];
-let selected = new Set();
 
-const survey = {
-    style: new Set(), portion: '2人份', budget: '不限',
-    time: '不限', restrict: new Set(['無']), days: '5天'
-};
+const EXPIRY_DAYS = {'🥩 肉類': 5, '🐟 海鮮': 3, '🥬 蔬菜': 7, '🥚 蛋奶': 14, '🥫 其他': 30};
 
-function save() {
-    localStorage.setItem('fridge_v3', JSON.stringify(fridge));
-    localStorage.setItem('history_v3', JSON.stringify(history));
-    localStorage.setItem('tools_v3', JSON.stringify(savedTools));
+// ==================== STORAGE ====================
+function safeGet(key, def) {
+    try {
+        const v = localStorage.getItem(key);
+        return v ? JSON.parse(v) : def;
+    } catch { return def; }
+}
+function safeSet(key, val) {
+    try {
+        localStorage.setItem(key, JSON.stringify(val));
+        return true;
+    } catch(e) {
+        if (e.name === 'QuotaExceededError') showToast('儲存空間已滿，請匯出備份後清除舊資料', false);
+        return false;
+    }
 }
 
-// PWA tip
-function dismissTip() {
-    document.getElementById('pwa-tip').style.display = 'none';
-    localStorage.setItem('pwa_dismissed', '1');
-}
-if (localStorage.getItem('pwa_dismissed')) {
-    document.getElementById('pwa-tip').style.display = 'none';
-}
-
-// Tab switching
-function switchTab(id) {
-    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-    document.getElementById('tab-' + id).classList.add('active');
-    document.getElementById('nav-' + id).classList.add('active');
-    if (id === 'cook') renderCookChips();
-    if (id === 'fridge') renderFridge();
-    if (id === 'history') renderHistory();
-    window.scrollTo(0, 0);
+// ==================== DATA MIGRATION ====================
+function migrateFridge() {
+    const raw = safeGet('fridge_v4', null);
+    if (raw) return raw;
+    // Try old formats
+    const old = safeGet('fridge_v3', null) || safeGet('fridge', null);
+    if (old && Array.isArray(old)) {
+        const migrated = old.map(item => ({
+            name: item.name || '',
+            cat: item.cat || '🥫 其他',
+            date: item.date || new Date().toISOString().split('T')[0],
+            usageCount: item.usageCount || 0
+        }));
+        safeSet('fridge_v4', migrated);
+        return migrated;
+    }
+    return [];
 }
 
-// Fridge
-function renderFridge() {
-    const el = document.getElementById('fridge-list');
-    if (!fridge.length) {
-        el.innerHTML = '<div class="empty"><span class="empty-icon">🧊</span>冰箱空空的，去補點貨吧！</div>';
+// ==================== STATE ====================
+let fridge = migrateFridge();
+let history = safeGet('history_v4', []);
+let tools = safeGet('tools_cfg', [
+    {name:'電鍋', selected:true},
+    {name:'電磁爐', selected:false},
+    {name:'氣炸鍋', selected:false}
+]);
+let settings = safeGet('settings_v1', {notificationsEnabled: false, lastNotifDate: null});
+let shopList = safeGet('shop_list', []);
+let selectedIngredients = [];
+let selectedAI = 'ChatGPT';
+let batchMode = false;
+let undoStack = [];
+let collapsedCats = safeGet('collapsed_cats', {});
+let qAnswers = {};
+let currentQStep = 1;
+let lastPrompt = '';
+let lastShopPrompt = '';
+
+// ==================== HELPERS ====================
+function daysAgo(dateStr) {
+    if (!dateStr) return 0;
+    const d = new Date(dateStr);
+    const now = new Date();
+    return Math.floor((now - d) / 86400000);
+}
+function getExpiryDays(item) {
+    const limit = EXPIRY_DAYS[item.cat] || 30;
+    const used = daysAgo(item.date);
+    return limit - used;
+}
+function daysLabel(item) {
+    const rem = getExpiryDays(item);
+    if (rem < 0) return {text:`過期${Math.abs(rem)}天`, cls:'expired'};
+    if (rem <= 2) return {text:`剩${rem}天`, cls:'soon'};
+    return {text:`剩${rem}天`, cls:'ok'};
+}
+
+let toastTimer = null;
+function showToast(msg, canUndo = false) {
+    const toast = document.getElementById('toast');
+    const msgEl = document.getElementById('toastMsg');
+    const undoBtn = document.getElementById('toastUndo');
+    msgEl.textContent = msg;
+    undoBtn.style.display = canUndo ? '' : 'none';
+    toast.classList.remove('hidden');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 5000);
+}
+
+// ==================== UNDO ====================
+function pushUndo(action) {
+    undoStack.push(action);
+    if (undoStack.length > 20) undoStack.shift();
+}
+function doUndo() {
+    const action = undoStack.pop();
+    if (!action) return;
+    if (action.type === 'delete_fridge') {
+        fridge.splice(action.index, 0, action.item);
+        saveAndRender();
+        showToast('已復原');
+    } else if (action.type === 'delete_history') {
+        history.splice(action.index, 0, action.item);
+        safeSet('history_v4', history);
+        renderHistory();
+        showToast('已復原');
+    } else if (action.type === 'batch_delete') {
+        fridge = action.items;
+        saveAndRender();
+        showToast('已復原');
+    }
+}
+
+// ==================== TABS ====================
+function switchTab(name, btn) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    btn.classList.add('active');
+    if (name === 'cook') { renderCookChips(); renderCookExpiryBanner(); }
+    if (name === 'fridge') renderFridge();
+    if (name === 'history') renderHistory();
+    if (name === 'settings') renderSettings();
+    if (name === 'shop') renderShop();
+}
+
+// ==================== COOK TAB ====================
+function renderCookChips() {
+    const container = document.getElementById('ingredientChips');
+    // Sort by usageCount desc
+    const sorted = [...fridge].sort((a,b) => (b.usageCount||0) - (a.usageCount||0));
+    container.innerHTML = sorted.map((item, i) => {
+        const rem = getExpiryDays(item);
+        const isExpiring = rem <= 3;
+        const idx = fridge.indexOf(item);
+        const sel = selectedIngredients.includes(item.name);
+        return `<div class="chip${sel?' selected':''}${isExpiring?' expiring':''}" onclick="toggleIngredient('${item.name}',this)">${isExpiring?'⚠️ ':''}${item.name}</div>`;
+    }).join('');
+
+    // Tools
+    const toolContainer = document.getElementById('toolChips');
+    toolContainer.innerHTML = tools.map((t, i) =>
+        `<div class="chip${t.selected?' selected':''}" onclick="toggleTool(${i})">${t.name}</div>`
+    ).join('');
+}
+
+function renderCookExpiryBanner() {
+    const banner = document.getElementById('cookExpiryBanner');
+    const expiring = fridge.filter(i => getExpiryDays(i) <= 3 && getExpiryDays(i) >= 0);
+    const expired = fridge.filter(i => getExpiryDays(i) < 0);
+    let html = '';
+    if (expired.length > 0) {
+        html += `<div class="expiry-banner"><span class="banner-icon">🚨</span><span class="banner-text">${expired.length} 項食材已過期！</span><button class="banner-btn" onclick="clearExpiredItems()">一鍵清除</button></div>`;
+    }
+    if (expiring.length > 0) {
+        html += `<div class="expiry-banner"><span class="banner-icon">⚠️</span><span class="banner-text">${expiring.length} 項食材即將到期</span><button class="banner-btn" onclick="selectExpiringIngredients()">快速選取</button></div>`;
+    }
+    banner.innerHTML = html;
+}
+
+function toggleIngredient(name, el) {
+    const idx = selectedIngredients.indexOf(name);
+    if (idx >= 0) selectedIngredients.splice(idx, 1);
+    else selectedIngredients.push(name);
+    el.classList.toggle('selected');
+}
+
+function toggleTool(i) {
+    tools[i].selected = !tools[i].selected;
+    safeSet('tools_cfg', tools);
+    renderCookChips();
+}
+
+function selectAI(el, name) {
+    selectedAI = name;
+    document.querySelectorAll('#aiChips .chip').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+}
+
+function selectExpiringIngredients() {
+    const expiring = fridge.filter(i => getExpiryDays(i) <= 3 && getExpiryDays(i) >= 0);
+    expiring.forEach(item => {
+        if (!selectedIngredients.includes(item.name)) selectedIngredients.push(item.name);
+    });
+    renderCookChips();
+    if (document.getElementById('tab-cook').classList.contains('active')) {
+        // already on cook tab, just update chips
+    }
+    switchTab('cook', document.querySelector('.nav-btn'));
+}
+
+function clearIngredientSelection() {
+    selectedIngredients = [];
+    renderCookChips();
+}
+
+function generatePrompt() {
+    if (selectedIngredients.length === 0) {
+        showToast('請先選擇食材');
         return;
     }
-    el.innerHTML = fridge.map((item, i) => `
-        <div class="item-row">
-            <div class="dot ${freshnessClass(item.date)}"></div>
-            <div style="flex:1;min-width:0">
-                <div class="item-name">${esc(item.name)}</div>
-                <div class="item-meta">${esc(item.cat)} · ${freshnessLabel(item.date)}</div>
+    const selTools = tools.filter(t => t.selected).map(t => t.name);
+    const custom = document.getElementById('customRequest').value.trim();
+    const prompt = `我的冰箱裡有：${selectedIngredients.join('、')}。
+可用的料理工具：${selTools.length ? selTools.join('、') : '一般廚具'}。
+${custom ? '特別需求：' + custom + '。' : ''}
+請根據以上食材和工具，幫我規劃今天的料理菜單，給出 2-3 道菜的食譜，包含所需食材份量和步驟。盡量使用完這些食材，並優先使用快要過期的食材。`;
+
+    lastPrompt = prompt;
+    document.getElementById('cookResult').textContent = prompt;
+    document.getElementById('cookResultWrap').style.display = '';
+    // Update usage count
+    selectedIngredients.forEach(name => {
+        const item = fridge.find(f => f.name === name);
+        if (item) item.usageCount = (item.usageCount || 0) + 1;
+    });
+    safeSet('fridge_v4', fridge);
+}
+
+function copyPrompt() {
+    if (!lastPrompt) return;
+    navigator.clipboard.writeText(lastPrompt).then(() => showToast('已複製！'));
+}
+
+function openAI() {
+    if (!lastPrompt) return;
+    navigator.clipboard.writeText(lastPrompt).then(() => {
+        if (selectedAI === 'ChatGPT') {
+            const deeplink = 'chatgpt://';
+            const fallback = 'https://chatgpt.com';
+            window.location.href = deeplink;
+            setTimeout(() => { window.location.href = fallback; }, 1500);
+        } else {
+            const deeplink = 'claude://';
+            const fallback = 'https://claude.ai';
+            window.location.href = deeplink;
+            setTimeout(() => { window.location.href = fallback; }, 1500);
+        }
+        showToast('已複製！請貼上到 AI 對話框');
+    });
+}
+
+function saveHistory() {
+    if (!lastPrompt) return;
+    const selTools = tools.filter(t => t.selected).map(t => t.name);
+    const now = new Date();
+    const record = {
+        date: now.toLocaleDateString('zh-TW') + ' ' + now.toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit'}),
+        items: selectedIngredients.join('、'),
+        tools: selTools.join('、'),
+        ai: selectedAI,
+        note: '',
+        starred: false
+    };
+    history.unshift(record);
+    safeSet('history_v4', history);
+    showToast('已儲存料理記錄');
+}
+
+// ==================== FRIDGE TAB ====================
+function saveAndRender() {
+    safeSet('fridge_v4', fridge);
+    renderFridge();
+    renderCookChips();
+    renderCookExpiryBanner();
+}
+
+function renderFridge() {
+    const search = (document.getElementById('fridgeSearch')?.value || '').trim().toLowerCase();
+    const container = document.getElementById('fridgeList');
+    let filtered = fridge;
+    if (search) filtered = fridge.filter(i => i.name.toLowerCase().includes(search));
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="empty">冰箱是空的，快去新增食材吧！</div>';
+        return;
+    }
+
+    // Group by category
+    const groups = {};
+    CATEGORIES.forEach(cat => { groups[cat] = []; });
+    filtered.forEach((item, idx) => {
+        const cat = item.cat || '🥫 其他';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push({item, idx: fridge.indexOf(item)});
+    });
+
+    let html = '';
+    CATEGORIES.forEach(cat => {
+        const items = groups[cat];
+        if (items.length === 0) return;
+        const isCollapsed = collapsedCats[cat];
+        html += `<div class="cat-section">
+            <div class="cat-header${isCollapsed?' collapsed':''}" onclick="toggleCat('${cat}')">
+                <span class="cat-title">${cat} <span class="cat-count">${items.length}</span></span>
+                <span class="cat-arrow">▼</span>
             </div>
-            <button class="icon-btn" onclick="removeFridge(${i})">✕</button>
-        </div>
-    `).join('');
+            <div class="cat-body${isCollapsed?' hidden':''}">`;
+        items.forEach(({item, idx}) => {
+            const {text, cls} = daysLabel(item);
+            html += `<div class="fridge-item">
+                ${batchMode ? `<input type="checkbox" class="item-checkbox" data-idx="${idx}" onchange="updateBatchCount()">` : ''}
+                <div style="flex:1;">
+                    <div class="name">${item.name}</div>
+                    <div class="date">${item.date} · ${item.cat}</div>
+                </div>
+                <span class="days ${cls}">${text}</span>
+                ${!batchMode ? `<button class="btn btn-outline btn-sm" onclick="openEditFridge(${idx})">編輯</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteFridgeItem(${idx})">刪除</button>` : ''}
+            </div>`;
+        });
+        html += `</div></div>`;
+    });
+    container.innerHTML = html;
 }
 
-function addToFridge() {
-    const nameEl = document.getElementById('new-ingredient');
-    const catEl = document.getElementById('new-cat');
-    const name = nameEl.value.trim();
-    if (!name) return;
-    if (!fridge.find(i => i.name === name)) {
-        fridge.push({ name, cat: catEl.value, date: today() });
-        save(); renderFridge();
-        showToast('✅ ' + name + ' 已加入冰箱');
-    } else {
-        showToast('⚠️ 冰箱裡已有這項食材');
+function toggleCat(cat) {
+    collapsedCats[cat] = !collapsedCats[cat];
+    safeSet('collapsed_cats', collapsedCats);
+    renderFridge();
+}
+
+function showAddFridge() {
+    const form = document.getElementById('addFridgeForm');
+    form.style.display = '';
+    document.getElementById('newItemDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('newItemName').value = '';
+    document.getElementById('newItemName').focus();
+}
+function hideAddFridge() {
+    document.getElementById('addFridgeForm').style.display = 'none';
+    document.getElementById('autocompleteList').classList.add('hidden');
+}
+
+function addFridgeItem() {
+    const name = document.getElementById('newItemName').value.trim();
+    const cat = document.getElementById('newItemCat').value;
+    const date = document.getElementById('newItemDate').value || new Date().toISOString().split('T')[0];
+    if (!name) { showToast('請輸入食材名稱'); return; }
+    fridge.push({name, cat, date, usageCount: 0});
+    saveAndRender();
+    hideAddFridge();
+    showToast(`已新增 ${name}`);
+}
+
+function deleteFridgeItem(idx) {
+    const item = fridge[idx];
+    pushUndo({type:'delete_fridge', index:idx, item});
+    fridge.splice(idx, 1);
+    saveAndRender();
+    showToast(`已刪除 ${item.name}`, true);
+}
+
+function openEditFridge(idx) {
+    const item = fridge[idx];
+    document.getElementById('editFridgeIdx').value = idx;
+    document.getElementById('editFridgeName').value = item.name;
+    document.getElementById('editFridgeCat').value = item.cat;
+    document.getElementById('editFridgeDate').value = item.date;
+    document.getElementById('editFridgeModal').classList.remove('hidden');
+}
+function closeEditFridge() { document.getElementById('editFridgeModal').classList.add('hidden'); }
+function saveEditFridge() {
+    const idx = parseInt(document.getElementById('editFridgeIdx').value);
+    fridge[idx].name = document.getElementById('editFridgeName').value.trim();
+    fridge[idx].cat = document.getElementById('editFridgeCat').value;
+    fridge[idx].date = document.getElementById('editFridgeDate').value;
+    saveAndRender();
+    closeEditFridge();
+    showToast('已更新食材');
+}
+
+function clearExpiredItems() {
+    const before = fridge.length;
+    fridge = fridge.filter(i => getExpiryDays(i) >= 0);
+    saveAndRender();
+    showToast(`已清除 ${before - fridge.length} 項過期食材`);
+}
+
+// ==================== AUTOCOMPLETE ====================
+function onNameInput() {
+    const val = document.getElementById('newItemName').value.trim().toLowerCase();
+    const list = document.getElementById('autocompleteList');
+    if (!val) { list.classList.add('hidden'); return; }
+    const matches = FOOD_DB.filter(f => f.includes(val) || val.includes(f)).slice(0, 6);
+    if (matches.length === 0) { list.classList.add('hidden'); return; }
+    list.innerHTML = matches.map(m =>
+        `<div class="autocomplete-item" onclick="selectAutocomplete('${m}')">${m}</div>`
+    ).join('');
+    list.classList.remove('hidden');
+}
+function selectAutocomplete(val) {
+    document.getElementById('newItemName').value = val;
+    document.getElementById('autocompleteList').classList.add('hidden');
+    // Auto-detect category
+    const catMap = {
+        '🥩 肉類': ['豬','牛','雞','羊','肉','排骨','培根','香腸','火腿','鴨','肝'],
+        '🐟 海鮮': ['魚','蝦','花枝','透抽','蛤','貝','蟹','干貝','牡蠣','海鮮','吻仔'],
+        '🥬 蔬菜': ['菜','瓜','椒','蔥','薑','蒜','蘿蔔','馬鈴薯','地瓜','南瓜','番茄','菇','木耳','豆芽','豌豆','玉米'],
+        '🥚 蛋奶': ['蛋','豆腐','奶','起司','優格','豆漿'],
+    };
+    for (const [cat, keywords] of Object.entries(catMap)) {
+        if (keywords.some(k => val.includes(k))) {
+            document.getElementById('newItemCat').value = cat;
+            return;
+        }
     }
-    nameEl.value = '';
-    nameEl.focus();
+    document.getElementById('newItemCat').value = '🥫 其他';
 }
 
-function quickAdd(name, cat) {
-    if (!fridge.find(i => i.name === name)) {
-        fridge.push({ name, cat, date: today() });
-        save(); renderFridge();
-        showToast('✅ ' + name + ' 已加入冰箱');
-    } else {
-        showToast('⚠️ 已有 ' + name);
+// ==================== BATCH MODE ====================
+function toggleBatchMode() {
+    batchMode = !batchMode;
+    if (!batchMode) exitBatchMode();
+    else {
+        document.getElementById('batchBar').classList.remove('hidden');
+        renderFridge();
+    }
+}
+function exitBatchMode() {
+    batchMode = false;
+    document.getElementById('batchBar').classList.add('hidden');
+    renderFridge();
+}
+function updateBatchCount() {
+    const checked = document.querySelectorAll('.item-checkbox:checked').length;
+    document.getElementById('batchCount').textContent = `已選 ${checked} 項`;
+}
+function getCheckedIndices() {
+    return [...document.querySelectorAll('.item-checkbox:checked')].map(el => parseInt(el.dataset.idx));
+}
+function batchDelete() {
+    const indices = getCheckedIndices();
+    if (indices.length === 0) { showToast('請先選擇食材'); return; }
+    pushUndo({type:'batch_delete', items: JSON.parse(JSON.stringify(fridge))});
+    const sorted = indices.sort((a,b) => b-a);
+    sorted.forEach(idx => fridge.splice(idx, 1));
+    exitBatchMode();
+    showToast(`已刪除 ${indices.length} 項食材`, true);
+}
+function batchAddToCook() {
+    const indices = getCheckedIndices();
+    if (indices.length === 0) { showToast('請先選擇食材'); return; }
+    indices.forEach(idx => {
+        const name = fridge[idx].name;
+        if (!selectedIngredients.includes(name)) selectedIngredients.push(name);
+    });
+    exitBatchMode();
+    switchTab('cook', document.querySelector('.nav-btn'));
+    showToast(`已加入 ${indices.length} 項食材到料理`);
+}
+
+// ==================== BARCODE ====================
+async function startBarcode() {
+    const status = document.getElementById('barcodeStatus');
+    if (!('BarcodeDetector' in window)) {
+        status.textContent = '此裝置不支援條碼掃描';
+        return;
+    }
+    status.textContent = '開啟相機中...';
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}});
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+        const detector = new BarcodeDetector({formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e']});
+        let found = false;
+        const scan = async () => {
+            if (found) return;
+            try {
+                const barcodes = await detector.detect(video);
+                if (barcodes.length > 0) {
+                    found = true;
+                    stream.getTracks().forEach(t => t.stop());
+                    const code = barcodes[0].rawValue;
+                    status.textContent = '查詢中...';
+                    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+                    const data = await res.json();
+                    if (data.status === 1) {
+                        const name = data.product.product_name_zh || data.product.product_name || code;
+                        document.getElementById('newItemName').value = name;
+                        status.textContent = `已掃描：${name}`;
+                    } else {
+                        status.textContent = '找不到商品資料，請手動輸入';
+                    }
+                } else {
+                    requestAnimationFrame(scan);
+                }
+            } catch { requestAnimationFrame(scan); }
+        };
+        video.addEventListener('playing', scan);
+    } catch(e) {
+        status.textContent = '無法開啟相機：' + e.message;
     }
 }
 
-function removeFridge(i) {
-    selected.delete(fridge[i].name);
-    fridge.splice(i, 1);
-    save(); renderFridge();
-}
-
+// ==================== VOICE INPUT ====================
 function startVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { showToast('此瀏覽器不支援語音輸入'); return; }
-    const btn = document.getElementById('voice-btn');
+    if (!SR) { showToast('此裝置不支援語音輸入'); return; }
     const rec = new SR();
     rec.lang = 'zh-TW';
-    rec.onstart = () => { btn.textContent = '🔴'; };
-    rec.onend = () => { btn.textContent = '🎤'; };
-    rec.onresult = (e) => { document.getElementById('new-ingredient').value = e.results[0][0].transcript; };
-    rec.onerror = () => showToast('語音辨識失敗，請重試');
+    rec.onresult = e => {
+        document.getElementById('newItemName').value = e.results[0][0].transcript;
+        onNameInput();
+    };
+    rec.onerror = () => showToast('語音辨識失敗');
     rec.start();
+    showToast('請說出食材名稱...');
 }
 
-// Cook
-function renderCookChips() {
-    const el = document.getElementById('cook-chips');
-    const emptyEl = document.getElementById('cook-empty');
-    el.innerHTML = '';
-    if (!fridge.length) { emptyEl.style.display = 'block'; return; }
-    emptyEl.style.display = 'none';
-    fridge.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'cook-chip' + (selected.has(item.name) ? ' on' : '');
-        const dot = document.createElement('span');
-        dot.className = 'dot ' + freshnessClass(item.date);
-        dot.style.cssText = 'width:8px;height:8px;flex-shrink:0';
-        div.appendChild(dot);
-        div.appendChild(document.createTextNode(item.name));
-        div.onclick = () => {
-            if (selected.has(item.name)) { selected.delete(item.name); div.classList.remove('on'); }
-            else { selected.add(item.name); div.classList.add('on'); }
-        };
-        el.appendChild(div);
-    });
+// ==================== TOOL MANAGER ====================
+function openToolModal() {
+    renderToolList();
+    document.getElementById('toolModal').classList.remove('hidden');
+}
+function closeToolModal() {
+    document.getElementById('toolModal').classList.add('hidden');
+    safeSet('tools_cfg', tools);
+    renderCookChips();
+}
+function renderToolList() {
+    const container = document.getElementById('toolList');
+    container.innerHTML = tools.map((t, i) =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+            <span style="flex:1;font-size:15px;font-weight:600;">${t.name}</span>
+            <button class="btn btn-danger btn-sm" onclick="removeTool(${i})">刪除</button>
+        </div>`
+    ).join('');
+}
+function addTool() {
+    const name = document.getElementById('newToolInput').value.trim();
+    if (!name) return;
+    tools.push({name, selected: false});
+    document.getElementById('newToolInput').value = '';
+    renderToolList();
+}
+function removeTool(i) {
+    tools.splice(i, 1);
+    renderToolList();
 }
 
-function restoreTools() {
-    document.querySelectorAll('input[name=tool]').forEach(cb => {
-        cb.checked = savedTools.includes(cb.value);
-    });
-}
-
-function generateRecipePrompt(aiType) {
-    const validSelected = [...selected].filter(name => fridge.find(i => i.name === name));
-    if (!validSelected.length) { showToast('⚠️ 請先選擇食材'); return; }
-
-    const ingredients = validSelected.join('、');
-    const tools = [];
-    document.querySelectorAll('input[name=tool]:checked').forEach(cb => tools.push(cb.value));
-    savedTools = tools; save();
-    const toolsStr = tools.length ? tools.join('、') : '無特定限制';
-    const portion = document.getElementById('portion').value;
-    const notes = document.getElementById('cook-notes').value.trim() || '無特殊需求';
-
-    const prompt = `請扮演一位20年經驗的家庭大廚，幫我用現有條件規劃一桌菜。
-
-【嚴格限制】：
-1. 只能使用我提供的「主要食材」（基礎調味料如鹽、油、醬油、蔥蒜可預設擁有）。
-2. 烹飪步驟必須完全符合我提供的「料理工具」。
-
-【我的條件】：
-- 本次使用食材：${ingredients}
-- 可用工具：${toolsStr}
-- 需求份量：${portion}
-- 特殊備註：${notes}
-
-【請依照以下格式輸出】：
-1. 今日菜單組合
-2. 食材分配與備料重點
-3. 並行烹飪流（如何同時使用多種工具達到最省時）
-4. 各道菜的簡潔步驟`;
-
-    const now = new Date();
-    const dateStr = now.getFullYear() + '/' + (now.getMonth()+1) + '/' + now.getDate() + ' ' +
-        String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-    history.unshift({ date: dateStr, items: ingredients, tools: toolsStr, ai: aiType, note: '', starred: false });
-    if (history.length > 30) history.pop();
-    save();
-
-    if (confirm('食譜提示詞已複製！\n要把【' + ingredients + '】從冰箱庫存扣除嗎？')) {
-        validSelected.forEach(name => { fridge = fridge.filter(i => i.name !== name); });
-        selected.clear(); save(); renderCookChips();
-    }
-    openAI(aiType, prompt);
-}
-
-// Survey
-function toggleSurvey(group, value, el) {
-    if (group === 'style' || group === 'restrict') {
-        if (survey[group].has(value)) { survey[group].delete(value); el.classList.remove('on'); }
-        else { survey[group].add(value); el.classList.add('on'); }
-    } else {
-        survey[group] = value;
-        document.querySelectorAll('[data-g="' + group + '"]').forEach(e => e.classList.remove('on'));
-        el.classList.add('on');
-    }
-}
-
-function generateSurveyPrompt(aiType) {
-    const style = survey.style.size ? [...survey.style].join('、') : '隨便都行';
-    const restrict = survey.restrict.size ? [...survey.restrict].join('、') : '無';
-
-    const prompt = `請扮演一位專業的家庭料理顧問，幫我規劃本週的採購食材清單。
-
-【我的需求】：
-- 偏好風格：${style}
-- 用餐人數：${survey.portion}
-- 採購預算：${survey.budget}
-- 每天料理時間：${survey.time}
-- 飲食限制：${restrict}
-- 希望幾天份的食材：${survey.days}
-
-【請依照以下格式輸出】：
-1. 本週推薦採購食材清單（每項附上建議購買量與大概費用）
-2. 三天示範菜色組合（展示食材如何搭配使用）
-3. 聰明採購訣竅（哪些食材可一魚多吃、如何減少浪費）`;
-
-    openAI(aiType, prompt);
-}
-
-// AI Deep Link
-function fallbackCopy(text) {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none;top:0;left:0';
-    document.body.appendChild(ta);
-    ta.focus(); ta.select();
-    try { document.execCommand('copy'); } catch(e) {}
-    ta.remove();
-}
-
-function openAI(type, text) {
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-    } else {
-        fallbackCopy(text);
-    }
-    showToast('✅ 已複製！正在跳轉...');
-
-    const schemes = { ChatGPT: 'chatgpt://', Claude: 'claude://', Gemini: null };
-    const urls = { ChatGPT: 'https://chatgpt.com/', Claude: 'https://claude.ai/', Gemini: 'https://gemini.google.com/' };
-    const scheme = schemes[type];
-    const url = urls[type];
-
-    if (scheme) {
-        let appOpened = false;
-        const onBlur = () => { appOpened = true; };
-        window.addEventListener('blur', onBlur, { once: true });
-        window.location.href = scheme;
-        setTimeout(() => {
-            window.removeEventListener('blur', onBlur);
-            if (!appOpened) window.open(url, '_blank');
-        }, 1500);
-    } else {
-        setTimeout(() => window.open(url, '_blank'), 400);
-    }
-}
-
-// History
-function renderHistory() {
-    const el = document.getElementById('history-list');
-    if (!history.length) {
-        el.innerHTML = '<div class="empty"><span class="empty-icon">📖</span>還沒有料理紀錄<br>開始你的第一道菜吧！</div>';
+// ==================== SHOPPING TAB ====================
+function renderShop() {
+    const container = document.getElementById('shopList');
+    if (shopList.length === 0) {
+        container.innerHTML = '<div class="empty">採購清單是空的</div>';
         return;
     }
-    el.innerHTML = history.map((r, i) => `
-        <div class="h-card${r.starred ? ' starred' : ''}">
-            <div class="h-header">
-                <div class="h-date">${esc(r.date)} · ${esc(r.ai)}</div>
-                <div class="h-actions">
-                    <button class="icon-btn" onclick="toggleStar(${i})">${r.starred ? '⭐' : '☆'}</button>
-                    <button class="icon-btn" onclick="toggleNote(${i})">📝</button>
-                    <button class="icon-btn" onclick="deleteHistory(${i})">🗑️</button>
-                </div>
-            </div>
-            <div class="h-items">🥘 ${esc(r.items)}</div>
-            <div class="h-tools">🛠️ ${esc(r.tools)}</div>
-            ${r.note ? '<div class="h-note">"' + esc(r.note) + '"</div>' : ''}
-            <div id="ne-${i}" style="display:none">
-                <div class="note-row">
-                    <input type="text" id="ni-${i}" value="${esc(r.note || '')}" placeholder="加上心得備註...">
-                    <button class="btn btn-dark btn-sm" onclick="saveNote(${i})">儲存</button>
-                </div>
-            </div>
-        </div>
-    `).join('');
+    container.innerHTML = shopList.map((item, i) =>
+        `<div class="shop-item${item.checked?' checked':''}">
+            <input type="checkbox" ${item.checked?'checked':''} onchange="toggleShop(${i})">
+            <span class="shop-name">${item.name}</span>
+            <button class="btn btn-danger btn-sm" onclick="deleteShopItem(${i})">刪除</button>
+        </div>`
+    ).join('');
+}
+function addShopItem() {
+    const val = document.getElementById('newShopItem').value.trim();
+    if (!val) return;
+    shopList.push({name: val, checked: false});
+    document.getElementById('newShopItem').value = '';
+    safeSet('shop_list', shopList);
+    renderShop();
+}
+function toggleShop(i) {
+    shopList[i].checked = !shopList[i].checked;
+    safeSet('shop_list', shopList);
+    renderShop();
+}
+function deleteShopItem(i) {
+    shopList.splice(i, 1);
+    safeSet('shop_list', shopList);
+    renderShop();
+}
+function clearCheckedShop() {
+    shopList = shopList.filter(i => !i.checked);
+    safeSet('shop_list', shopList);
+    renderShop();
 }
 
-function toggleStar(i) {
+// ==================== QUESTIONNAIRE ====================
+function startQuestionnaire() {
+    qAnswers = {};
+    currentQStep = 1;
+    document.getElementById('questionnaireWrap').style.display = '';
+    document.querySelectorAll('.q-step').forEach(s => s.classList.remove('active'));
+    document.getElementById('qStep1').classList.add('active');
+    document.querySelectorAll('.q-option').forEach(o => o.classList.remove('selected'));
+}
+function closeQuestionnaire() {
+    document.getElementById('questionnaireWrap').style.display = 'none';
+}
+function qSelect(step, key, el, val) {
+    qAnswers[key] = val;
+    const stepEl = document.getElementById('qStep' + step);
+    stepEl.querySelectorAll('.q-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    setTimeout(() => {
+        const next = step + 1;
+        if (next <= 3) {
+            stepEl.classList.remove('active');
+            document.getElementById('qStep' + next).classList.add('active');
+            currentQStep = next;
+        } else {
+            stepEl.classList.remove('active');
+            document.getElementById('qStep4').classList.add('active');
+            generateShopPrompt();
+        }
+    }, 400);
+}
+function generateShopPrompt() {
+    const prompt = `我想請你推薦本週應該購買哪些食材。
+- 用餐人數：${qAnswers.people || '不限'}
+- 飲食偏好：${qAnswers.diet || '均衡飲食'}
+- 料理時間：${qAnswers.time || '一般'}
+- 可用工具：${tools.map(t=>t.name).join('、')}
+
+請推薦 10-15 樣適合的食材，說明為什麼推薦這些食材，並建議簡單的搭配料理方式。`;
+    lastShopPrompt = prompt;
+    document.getElementById('shopAIResult').textContent = prompt;
+}
+function copyShopPrompt() {
+    navigator.clipboard.writeText(lastShopPrompt).then(() => showToast('已複製！'));
+}
+function openAIForShop() {
+    navigator.clipboard.writeText(lastShopPrompt).then(() => {
+        window.location.href = 'chatgpt://';
+        setTimeout(() => { window.location.href = 'https://chatgpt.com'; }, 1500);
+    });
+}
+
+// ==================== HISTORY TAB ====================
+function renderHistory() {
+    const container = document.getElementById('historyList');
+    if (history.length === 0) {
+        container.innerHTML = '<div class="empty">尚無料理記錄</div>';
+        return;
+    }
+    container.innerHTML = history.map((h, i) =>
+        `<div class="hist-item">
+            <div class="hist-meta">${h.date} · ${h.ai}</div>
+            <div class="hist-title">🥘 ${h.items}</div>
+            <div style="font-size:12px;color:var(--muted);">工具：${h.tools || '—'}</div>
+            ${h.note ? `<div class="hist-note">"${h.note}"</div>` : ''}
+            <div class="hist-actions">
+                <button class="btn btn-outline btn-sm" onclick="openEditHist(${i})">${h.starred?'★ 已收藏':'☆ 收藏'}</button>
+                <button class="btn btn-outline btn-sm" onclick="toggleStarHist(${i})">${h.starred?'已收藏':'收藏'}</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteHist(${i})">刪除</button>
+            </div>
+        </div>`
+    ).join('');
+}
+function openEditHist(i) {
+    document.getElementById('editHistIdx').value = i;
+    document.getElementById('editHistNote').value = history[i].note || '';
+    document.getElementById('editHistModal').classList.remove('hidden');
+}
+function closeEditHist() { document.getElementById('editHistModal').classList.add('hidden'); }
+function saveEditHist() {
+    const i = parseInt(document.getElementById('editHistIdx').value);
+    history[i].note = document.getElementById('editHistNote').value.trim();
+    safeSet('history_v4', history);
+    renderHistory();
+    closeEditHist();
+    showToast('已更新備註');
+}
+function toggleStarHist(i) {
     history[i].starred = !history[i].starred;
-    save(); renderHistory();
+    safeSet('history_v4', history);
+    renderHistory();
+}
+function deleteHist(i) {
+    const item = history[i];
+    pushUndo({type:'delete_history', index:i, item});
+    history.splice(i, 1);
+    safeSet('history_v4', history);
+    renderHistory();
+    showToast('已刪除記錄', true);
+}
+function clearHistory() {
+    if (!confirm('確定要清除所有料理記錄嗎？')) return;
+    history = [];
+    safeSet('history_v4', history);
+    renderHistory();
+    showToast('已清除所有記錄');
 }
 
-function toggleNote(i) {
-    const el = document.getElementById('ne-' + i);
-    const isOpen = el.style.display !== 'none';
-    el.style.display = isOpen ? 'none' : 'block';
-    if (!isOpen) document.getElementById('ni-' + i).focus();
+// ==================== SETTINGS TAB ====================
+function renderSettings() {
+    document.getElementById('notifToggle').checked = settings.notificationsEnabled;
+}
+function toggleNotif() {
+    const enabled = document.getElementById('notifToggle').checked;
+    if (enabled) {
+        Notification.requestPermission().then(perm => {
+            if (perm === 'granted') {
+                settings.notificationsEnabled = true;
+                safeSet('settings_v1', settings);
+                showToast('通知已開啟');
+                scheduleExpiryNotifications();
+            } else {
+                settings.notificationsEnabled = false;
+                document.getElementById('notifToggle').checked = false;
+                showToast('未取得通知權限');
+            }
+        });
+    } else {
+        settings.notificationsEnabled = false;
+        safeSet('settings_v1', settings);
+        showToast('通知已關閉');
+    }
+}
+function scheduleExpiryNotifications() {
+    const expiring = fridge.filter(i => {
+        const rem = getExpiryDays(i);
+        return rem >= 0 && rem <= 2;
+    });
+    if (expiring.length > 0 && Notification.permission === 'granted') {
+        new Notification('冰箱提醒', {
+            body: `${expiring.map(i=>i.name).join('、')} 即將到期！`,
+            icon: './manifest.json'
+        });
+    }
+}
+function exportData() {
+    const data = {
+        fridge, history, tools, settings, shopList,
+        exportedAt: new Date().toISOString(),
+        version: 4
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fridge-chef-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('已匯出備份');
+}
+function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data.fridge) fridge = data.fridge;
+            if (data.history) history = data.history;
+            if (data.tools) tools = data.tools;
+            if (data.settings) settings = data.settings;
+            if (data.shopList) shopList = data.shopList;
+            safeSet('fridge_v4', fridge);
+            safeSet('history_v4', history);
+            safeSet('tools_cfg', tools);
+            safeSet('settings_v1', settings);
+            safeSet('shop_list', shopList);
+            renderFridge();
+            renderHistory();
+            renderSettings();
+            renderCookChips();
+            showToast('匯入成功！');
+        } catch {
+            showToast('匯入失敗：檔案格式錯誤');
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+function clearAllData() {
+    if (!confirm('確定要清除所有資料嗎？此操作無法復原！')) return;
+    fridge = []; history = []; shopList = [];
+    tools = [{name:'電鍋',selected:true},{name:'電磁爐',selected:false},{name:'氣炸鍋',selected:false}];
+    settings = {notificationsEnabled:false, lastNotifDate:null};
+    safeSet('fridge_v4', fridge);
+    safeSet('history_v4', history);
+    safeSet('tools_cfg', tools);
+    safeSet('settings_v1', settings);
+    safeSet('shop_list', shopList);
+    localStorage.removeItem('collapsed_cats');
+    renderFridge(); renderHistory(); renderSettings(); renderCookChips();
+    showToast('已清除所有資料');
 }
 
-function saveNote(i) {
-    history[i].note = document.getElementById('ni-' + i).value.trim();
-    save(); renderHistory(); showToast('✅ 備註已儲存');
+// ==================== CROSS-DEVICE SYNC ====================
+function openSyncModal() {
+    const data = {fridge, history, tools, settings, shopList, v:4};
+    document.getElementById('syncExportCode').value = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    document.getElementById('syncImportInput').value = '';
+    document.getElementById('syncModal').classList.remove('hidden');
 }
-
-function deleteHistory(i) {
-    if (confirm('確定要刪除這筆紀錄嗎？')) {
-        history.splice(i, 1); save(); renderHistory();
+function closeSyncModal() { document.getElementById('syncModal').classList.add('hidden'); }
+function copySyncCode() {
+    navigator.clipboard.writeText(document.getElementById('syncExportCode').value).then(() => showToast('同步碼已複製'));
+}
+function importSyncCode() {
+    try {
+        const raw = document.getElementById('syncImportInput').value.trim();
+        const data = JSON.parse(decodeURIComponent(escape(atob(raw))));
+        if (data.fridge) fridge = data.fridge;
+        if (data.history) history = data.history;
+        if (data.tools) tools = data.tools;
+        if (data.settings) settings = data.settings;
+        if (data.shopList) shopList = data.shopList;
+        safeSet('fridge_v4', fridge);
+        safeSet('history_v4', history);
+        safeSet('tools_cfg', tools);
+        safeSet('settings_v1', settings);
+        safeSet('shop_list', shopList);
+        closeSyncModal();
+        renderFridge(); renderHistory(); renderSettings(); renderCookChips(); renderShop();
+        showToast('同步成功！');
+    } catch {
+        showToast('同步碼格式錯誤');
     }
 }
 
-// Init
-document.getElementById('new-ingredient').addEventListener('keypress', e => {
-    if (e.key === 'Enter') addToFridge();
-});
-renderCookChips();
+// ==================== SERVICE WORKER ====================
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+// ==================== INIT ====================
 renderFridge();
 renderHistory();
-restoreTools();
+renderSettings();
+renderCookChips();
+renderCookExpiryBanner();
+renderShop();
+
+// Check expiry notifications on load
+if (settings.notificationsEnabled && Notification.permission === 'granted') {
+    const today = new Date().toDateString();
+    if (settings.lastNotifDate !== today) {
+        settings.lastNotifDate = today;
+        safeSet('settings_v1', settings);
+        scheduleExpiryNotifications();
+    }
+}
 </script>
 </body>
 </html>

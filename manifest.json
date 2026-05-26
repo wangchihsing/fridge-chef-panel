@@ -1,0 +1,17 @@
+{
+  "name": "我的冰箱 AI 主廚",
+  "short_name": "我的冰箱",
+  "description": "智慧冰箱管理與 AI 料理助手",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f5f4",
+  "theme_color": "#d97706",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23d97706'/><text x='96' y='140' font-size='110' text-anchor='middle'>🧊</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
