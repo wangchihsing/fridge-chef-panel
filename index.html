@@ -186,6 +186,35 @@
         .autocomplete-item:last-child { border-bottom: none; }
         .autocomplete-item:active { background: var(--accent); }
 
+        /* Sort toggle buttons */
+        .sort-btn {
+            padding: 5px 11px; border-radius: 20px; font-size: 12px; font-weight: 600;
+            cursor: pointer; border: 1.5px solid var(--border); background: var(--white);
+            color: var(--muted); font-family: inherit; transition: all 0.15s;
+        }
+        .sort-btn.active { background: var(--primary); color: var(--white); border-color: var(--primary); }
+
+        /* Ingredient groups in cook tab */
+        .ing-group { margin-bottom: 10px; }
+        .ing-group-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 6px 2px 6px; cursor: pointer; user-select: none;
+        }
+        .ing-group-title { font-size: 13px; font-weight: 700; }
+        .ing-group-meta { display: flex; align-items: center; gap: 6px; }
+        .ing-group-count {
+            font-size: 11px; color: var(--muted); background: var(--bg);
+            padding: 1px 7px; border-radius: 10px;
+        }
+        .ing-group-arrow { font-size: 11px; color: var(--muted); transition: transform 0.2s; }
+        .ing-group-header.collapsed .ing-group-arrow { transform: rotate(-90deg); }
+        .ing-group-body { padding-bottom: 4px; }
+        .ing-group-body.hidden { display: none; }
+        .chip-days {
+            font-size: 10px; font-weight: 600; opacity: 0.85;
+            margin-left: 3px; vertical-align: middle;
+        }
+
         /* Batch bar */
         .batch-bar {
             position: fixed; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
@@ -431,10 +460,16 @@
     </div>
     <div id="cookExpiryBanner"></div>
     <div class="card">
-        <div class="section-title">選擇食材</div>
-        <div class="chips" id="ingredientChips"></div>
-        <div class="row mt-12">
-            <button class="btn btn-outline btn-sm" onclick="selectExpiringIngredients()">⚠️ 快到期</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">選擇食材</span>
+            <div style="display:flex;gap:6px;">
+                <button class="sort-btn active" id="sortExpiry" onclick="setIngSort('expiry')">⚠️ 快到期</button>
+                <button class="sort-btn" id="sortRecent" onclick="setIngSort('recent')">📅 最新</button>
+            </div>
+        </div>
+        <div id="ingredientGroups"></div>
+        <div class="row mt-10">
+            <button class="btn btn-outline btn-sm" onclick="selectExpiringIngredients()">⚠️ 全選快到期</button>
             <button class="btn btn-outline btn-sm" onclick="clearIngredientSelection()">清除</button>
         </div>
     </div>
@@ -801,7 +836,9 @@ let selectedIngredients = [];
 let selectedAI = 'ChatGPT';
 let batchMode = false;
 let undoStack = [];
-let collapsedCats = safeGet('collapsed_cats', {});
+let collapsedCats = safeGet('collapsed_cats', {});   // fridge tab
+let cookCollapsedCats = {};                           // cook tab (not persisted, starts expanded)
+let ingredientSort = 'expiry';                        // 'expiry' | 'recent'
 let qAnswers = {};
 let lastPrompt = '';
 let lastShopPrompt = '';
@@ -876,25 +913,77 @@ function switchTab(name, btn) {
 }
 
 // ==================== COOK TAB ====================
-function renderCookChips() {
-    // Sort by usageCount desc, then expiry asc
-    const sorted = [...fridge].sort((a,b) => {
-        if ((b.usageCount||0) !== (a.usageCount||0)) return (b.usageCount||0) - (a.usageCount||0);
-        return getExpiryDays(a) - getExpiryDays(b);
-    });
-    document.getElementById('ingredientChips').innerHTML = sorted.map(item => {
-        const rem = getExpiryDays(item);
-        const isExpiring = rem <= 3 && rem >= 0;
-        const isExpired = rem < 0;
-        const sel = selectedIngredients.includes(item.name);
-        const cls = [
-            'chip',
-            sel ? 'selected' : '',
-            (isExpiring || isExpired) ? 'expiring' : ''
-        ].filter(Boolean).join(' ');
-        return `<div class="${cls}" onclick="toggleIngredient('${item.name.replace(/'/g,"\\'")}',this)">${isExpired?'🚨 ':isExpiring?'⚠️ ':''}${item.name}</div>`;
-    }).join('');
+function setIngSort(sort) {
+    ingredientSort = sort;
+    document.getElementById('sortExpiry').classList.toggle('active', sort === 'expiry');
+    document.getElementById('sortRecent').classList.toggle('active', sort === 'recent');
+    renderCookChips();
+}
 
+function toggleCookCat(cat) {
+    cookCollapsedCats[cat] = !cookCollapsedCats[cat];
+    renderCookChips();
+}
+
+function renderCookChips() {
+    // ── Group by category ──
+    const groups = {};
+    CATEGORIES.forEach(cat => { groups[cat] = []; });
+    fridge.forEach(item => {
+        const cat = item.cat || '🥫 其他';
+        if (groups[cat]) groups[cat].push(item);
+    });
+
+    // ── Sort within each group ──
+    CATEGORIES.forEach(cat => {
+        if (ingredientSort === 'expiry') {
+            // Soonest expiry first (expired items first too — highest urgency)
+            groups[cat].sort((a, b) => getExpiryDays(a) - getExpiryDays(b));
+        } else {
+            // Most recently purchased first
+            groups[cat].sort((a, b) => new Date(b.date) - new Date(a.date));
+        }
+    });
+
+    // ── Render grouped sections ──
+    let html = '';
+    CATEGORIES.forEach(cat => {
+        const items = groups[cat];
+        if (!items.length) return;
+        const collapsed = cookCollapsedCats[cat];
+        html += `<div class="ing-group">
+            <div class="ing-group-header${collapsed?' collapsed':''}" onclick="toggleCookCat('${cat}')">
+                <span class="ing-group-title">${cat}</span>
+                <span class="ing-group-meta">
+                    <span class="ing-group-count">${items.length}</span>
+                    <span class="ing-group-arrow">▼</span>
+                </span>
+            </div>
+            <div class="chips ing-group-body${collapsed?' hidden':''}">`;
+
+        items.forEach(item => {
+            const rem    = getExpiryDays(item);
+            const isExp  = rem < 0;
+            const isSoon = rem >= 0 && rem <= 3;
+            const sel    = selectedIngredients.includes(item.name);
+            const cls    = ['chip', sel?'selected':'', (isExp||isSoon)?'expiring':''].filter(Boolean).join(' ');
+            const icon   = isExp ? '🚨 ' : isSoon ? '⚠️ ' : '';
+            // Show days badge for items expiring within 14 days
+            const daysBadge = rem < 0
+                ? `<span class="chip-days">(過${Math.abs(rem)}天)</span>`
+                : rem <= 14
+                    ? `<span class="chip-days">(${rem}天)</span>`
+                    : '';
+            html += `<div class="${cls}" onclick="toggleIngredient('${item.name.replace(/'/g,"\\'")}',this)">${icon}${item.name}${daysBadge}</div>`;
+        });
+
+        html += `</div></div>`;
+    });
+
+    if (!html) html = '<p style="font-size:13px;color:var(--muted);padding:8px 0;">冰箱是空的，先去新增食材吧</p>';
+    document.getElementById('ingredientGroups').innerHTML = html;
+
+    // ── Tools chips (unchanged) ──
     document.getElementById('toolChips').innerHTML = tools.map((t, i) =>
         `<div class="chip${t.selected?' selected':''}" onclick="toggleTool(${i})">${t.name}</div>`
     ).join('');
