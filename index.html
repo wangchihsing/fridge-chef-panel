@@ -122,8 +122,8 @@
         .storage-tag {
             font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px;
         }
-        .storage-tag.frozen { background: #dbeafe; color: #1d4ed8; }
-        .storage-tag.chilled { background: #e0f2fe; color: #0369a1; }
+        .storage-tag.frozen { background: #dbeafe; color: #1e40af; }   /* 深藍 — 冷凍 */
+        .storage-tag.chilled { background: #dcfce7; color: #15803d; } /* 綠 — 冷藏 */
 
         /* Category section */
         .cat-section { margin: 12px; }
@@ -378,14 +378,18 @@
             <div>
                 <label>儲存方式</label>
                 <select id="editFridgeStorage">
-                    <option value="冷藏">❄️ 冷藏</option>
-                    <option value="冷凍">🧊 冷凍</option>
+                    <option value="冷凍">❄️ 冷凍</option>
+                    <option value="冷藏">🌡️ 冷藏</option>
                 </select>
             </div>
         </div>
         <div class="form-group mt-8">
             <label>購買日期</label>
             <input id="editFridgeDate" type="date">
+        </div>
+        <div class="form-group mt-8">
+            <label>到期日 <span style="color:var(--muted);font-weight:400;font-size:11px;">（選填，有印製日期填入）</span></label>
+            <input id="editFridgeExpiry" type="date">
         </div>
         <div class="row mt-12">
             <button class="btn btn-outline flex-1" onclick="closeEditFridge()">取消</button>
@@ -544,14 +548,18 @@
             <div>
                 <label>儲存方式</label>
                 <select id="newItemStorage">
-                    <option value="冷凍">🧊 冷凍</option>
-                    <option value="冷藏">❄️ 冷藏</option>
+                    <option value="冷凍">❄️ 冷凍</option>
+                    <option value="冷藏">🌡️ 冷藏</option>
                 </select>
             </div>
         </div>
         <div class="form-group mt-8">
             <label>購買日期</label>
             <input id="newItemDate" type="date">
+        </div>
+        <div class="form-group mt-8">
+            <label>到期日 <span style="color:var(--muted);font-weight:400;font-size:11px;">（選填，有印製日期填入）</span></label>
+            <input id="newItemExpiry" type="date">
         </div>
         <div class="row">
             <button class="btn btn-outline flex-1" onclick="hideAddFridge()">取消</button>
@@ -853,6 +861,12 @@ function daysAgo(dateStr) {
     return Math.floor((now - d) / 86400000);
 }
 function getExpiryDays(item) {
+    // If user set a custom expiry date, use it directly
+    if (item.expiry) {
+        const now = new Date(); now.setHours(0, 0, 0, 0);
+        const exp = new Date(item.expiry + 'T00:00:00');
+        return Math.floor((exp - now) / 86400000);
+    }
     const storage = item.storage || getDefaultStorage(item.cat);
     const limit = (EXPIRY_DAYS[storage] || EXPIRY_DAYS['冷藏'])[item.cat] || 30;
     return limit - daysAgo(item.date);
@@ -1152,7 +1166,7 @@ function renderFridge() {
         items.forEach(({item, idx}) => {
             const {text, cls} = daysLabel(item);
             const storeCls = item.storage === '冷凍' ? 'frozen' : 'chilled';
-            const storeLabel = item.storage === '冷凍' ? '🧊冷凍' : '❄️冷藏';
+            const storeLabel = item.storage === '冷凍' ? '❄️ 冷凍' : '🌡️ 冷藏';
             html += `<div class="fridge-item">
                 ${batchMode ? `<input type="checkbox" class="item-checkbox" data-idx="${idx}" onchange="updateBatchCount()">` : ''}
                 <div class="item-info">
@@ -1160,6 +1174,7 @@ function renderFridge() {
                     <div class="item-meta">
                         <span class="storage-tag ${storeCls}">${storeLabel}</span>
                         <span>${item.date}</span>
+                        ${item.expiry ? `<span style="font-size:11px;font-weight:700;color:var(--danger);">到期：${item.expiry}</span>` : ''}
                     </div>
                 </div>
                 <span class="days ${cls}">${text}</span>
@@ -1184,6 +1199,7 @@ function showAddFridge() {
     document.getElementById('newItemCat').value = '🥩 肉類';
     document.getElementById('newItemStorage').value = '冷凍';
     document.getElementById('newItemDate').value = today;
+    document.getElementById('newItemExpiry').value = '';
     hideAutocomplete(); // clear content + hide
     document.getElementById('addFridgeForm').style.display = '';
     document.getElementById('newItemName').focus();
@@ -1201,8 +1217,9 @@ function addFridgeItem() {
     const cat     = document.getElementById('newItemCat').value;
     const storage = document.getElementById('newItemStorage').value;
     const date    = document.getElementById('newItemDate').value || new Date().toISOString().split('T')[0];
+    const expiry  = document.getElementById('newItemExpiry').value || null;
     if (!name) { showToast('請輸入食材名稱'); return; }
-    fridge.push({name, cat, storage, date, usageCount: 0});
+    fridge.push({name, cat, storage, date, usageCount: 0, expiry});
     saveAndRender();
     hideAddFridge();
     showToast(`已新增 ${name}`);
@@ -1222,6 +1239,7 @@ function openEditFridge(idx) {
     document.getElementById('editFridgeCat').value   = item.cat;
     document.getElementById('editFridgeStorage').value = item.storage || getDefaultStorage(item.cat);
     document.getElementById('editFridgeDate').value  = item.date;
+    document.getElementById('editFridgeExpiry').value = item.expiry || '';
     document.getElementById('editFridgeModal').classList.remove('hidden');
 }
 function onEditCatChange() {
@@ -1235,6 +1253,7 @@ function saveEditFridge() {
     fridge[idx].cat     = document.getElementById('editFridgeCat').value;
     fridge[idx].storage = document.getElementById('editFridgeStorage').value;
     fridge[idx].date    = document.getElementById('editFridgeDate').value;
+    fridge[idx].expiry  = document.getElementById('editFridgeExpiry').value || null;
     saveAndRender();
     closeEditFridge();
     showToast('已更新食材');
@@ -1337,16 +1356,22 @@ function parseBatchInput() {
 }
 function renderBatchPreview() {
     document.getElementById('batchPreviewList').innerHTML = batchItems.map((item, i) => {
-        const storeCls = item.storage === '冷凍' ? 'frozen' : 'chilled';
-        return `<div class="batch-preview-item">
-            <span class="batch-preview-name">${item.name}</span>
-            <select class="batch-preview-cat" onchange="batchItems[${i}].cat=this.value;batchItems[${i}].storage=getDefaultStorage(this.value);renderBatchPreview()" style="width:auto;padding:4px 28px 4px 8px;font-size:12px;">
-                ${CATEGORIES.map(c => `<option value="${c}" ${c===item.cat?'selected':''}>${c}</option>`).join('')}
-            </select>
-            <select class="batch-preview-storage" onchange="batchItems[${i}].storage=this.value" style="width:auto;padding:4px 8px;font-size:12px;">
-                <option value="冷凍" ${item.storage==='冷凍'?'selected':''}>🧊冷凍</option>
-                <option value="冷藏" ${item.storage==='冷藏'?'selected':''}>❄️冷藏</option>
-            </select>
+        return `<div class="batch-preview-item" style="flex-direction:column;align-items:stretch;gap:6px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="batch-preview-name">${item.name}</span>
+                <select class="batch-preview-cat" onchange="batchItems[${i}].cat=this.value;batchItems[${i}].storage=getDefaultStorage(this.value);renderBatchPreview()" style="min-width:90px;padding:4px 28px 4px 8px;font-size:12px;">
+                    ${CATEGORIES.map(c => `<option value="${c}" ${c===item.cat?'selected':''}>${c}</option>`).join('')}
+                </select>
+                <select class="batch-preview-storage" onchange="batchItems[${i}].storage=this.value" style="min-width:90px;padding:4px 28px 4px 8px;font-size:12px;">
+                    <option value="冷凍" ${item.storage==='冷凍'?'selected':''}>❄️ 冷凍</option>
+                    <option value="冷藏" ${item.storage==='冷藏'?'selected':''}>🌡️ 冷藏</option>
+                </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <label style="font-size:11px;color:var(--muted);margin:0;white-space:nowrap;flex-shrink:0;">到期日（選填）</label>
+                <input type="date" value="${item.expiry||''}" oninput="batchItems[${i}].expiry=this.value||null"
+                    style="flex:1;font-size:11px;padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);-webkit-appearance:none;appearance:none;">
+            </div>
         </div>`;
     }).join('');
 }
@@ -1354,7 +1379,7 @@ function confirmBatchAdd() {
     if (!batchItems.length) return;
     const date = document.getElementById('batchDate').value || new Date().toISOString().split('T')[0];
     batchItems.forEach(item => {
-        fridge.push({name: item.name, cat: item.cat, storage: item.storage, date, usageCount: 0});
+        fridge.push({name: item.name, cat: item.cat, storage: item.storage, date, usageCount: 0, expiry: item.expiry || null});
     });
     saveAndRender();
     closeBatchAddModal();
