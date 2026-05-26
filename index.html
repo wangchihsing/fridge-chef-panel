@@ -830,7 +830,7 @@ function generatePrompt() {
     const prompt = `我的冰箱裡有：${selectedIngredients.join('、')}。
 可用的料理工具：${selTools.length ? selTools.join('、') : '一般廚具'}。
 ${custom ? '特別需求：' + custom + '。' : ''}
-請根據以上食材和工具，幫我規劃今天的料理菜單，給出 2-3 道菜的食譜，包含所需食材份量和步驟。盡量使用完這些食材，並優先使用快要過期的食材。`;
+請根據以上食材和工具，幫我規劃今天的料理菜單，給出 2-3 道菜的食譜。每道菜需包含：食材份量、詳細的食材處理步驟、料理時間、完整烹飪步驟。盡量使用完這些食材，並優先使用快要過期的食材。`;
 
     lastPrompt = prompt;
     document.getElementById('cookResult').textContent = prompt;
