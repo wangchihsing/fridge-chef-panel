@@ -1,4 +1,4 @@
-const CACHE = 'fridge-chef-v2';
+const CACHE = 'fridge-chef-v4';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', e => {
